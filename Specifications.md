@@ -93,6 +93,15 @@ Bouton dédié → enregistre la position actuelle → formulaire :
 - Sélection d'un objet existant (tap sur son marqueur) → ouverture du formulaire pré-rempli → modification ou suppression.
 - `last_update` remis à jour à chaque modification.
 
+### 6.4bis Sélection manuelle d'un point sur la carte ✅
+
+Sans GPS fiable (PC de développement, ou signal faible en intérieur), la création d'un objet ne peut pas toujours se baser sur une position automatique. Comportement retenu, **sans détection de plateforme** :
+
+- Clic sur « + Mobilier urbain » / « + Commerce » :
+  - **Si une position GPS récente est disponible** : comportement inchangé, la position est capturée immédiatement (cf. §6.2, §6.3).
+  - **Sinon** : un message invite à cliquer sur la carte (« Cliquez sur la carte pour choisir l'emplacement »), le curseur change, et le **prochain clic sur la carte** définit les coordonnées ; le formulaire s'ouvre alors normalement avec cette position.
+- Ce mécanisme est universel : il n'est pas réservé au PC. Il reste disponible aussi sur téléphone si le GPS est indisponible ou imprécis (bâtiment, signal faible), pour positionner manuellement le point sur la carte.
+
 ### 6.5 Persistance, Import et Export ✅ (revu — 3 flux distincts)
 
 1. **Restauration automatique au démarrage** — ce n'est *pas* un import : à chaque ouverture de l'app, les données déjà saisies sont relues depuis IndexedDB (stockage local du téléphone) et réaffichées sur la carte. Aucune action utilisateur, aucun fichier impliqué.
@@ -128,3 +137,17 @@ Une fois les points ouverts tranchés : structure de dossiers, dépôt Git local
   - Pour des tests précis et reproductibles, **Chrome DevTools → Sensors → Geolocation** permet de simuler une position GPS exacte (coordonnées choisies à la main), y compris un déplacement simulé.
   - Toute la logique indépendante du GPS (formulaires, listes déroulantes, détection de doublon, import/export GPKG, fusion) est testable sur PC sans aucune simulation particulière.
 - **Sur téléphone (Android + iPhone)** : validation finale en conditions réelles — précision GPS réelle, ergonomie tactile, comportement PWA installée (icône écran d'accueil, mode hors-connexion de l'app elle-même si le réseau coupe momentanément).
+
+## 11. Feuille de route — Étape 4 (développement incrémental)
+
+1. ✅ Position GPS temps réelle
+2. ✅ Identification de l'appareil (code appareil, base du `uid`)
+3. ✅ Stockage local (IndexedDB)
+4. ✅ Saisie d'un mobilier urbain
+5. ✅ Saisie d'un commerce
+6. ✅ Modification / suppression
+7. Icônes stylisées définitives (mobilier urbain + couleurs commerce)
+8. Sélection manuelle d'un point sur la carte (repli sans GPS, cf. §6.4bis)
+9. Export GPKG
+10. Import GPKG (remplacer / fusionner)
+11. Installabilité PWA (manifest, icône d'app, écran d'accueil)
