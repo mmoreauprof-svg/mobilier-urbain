@@ -1,0 +1,10 @@
+# Fichiers temporaires Office
+~$*
+
+# Fichiers système
+Thumbs.db
+.DS_Store
+
+# Éditeurs
+.vscode/
+*.swp
