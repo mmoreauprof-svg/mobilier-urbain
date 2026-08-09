@@ -80,11 +80,18 @@ html, body {
   font-size: 13px;
 }
 
-.bouton-flottant {
+.boutons-flottants {
   position: absolute;
   bottom: 16px;
   right: 16px;
   z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.bouton-flottant {
   padding: 12px 18px;
   font-size: 15px;
   border: none;
@@ -92,4 +99,16 @@ html, body {
   background: #1a73e8;
   color: white;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.bouton-flottant-commerce {
+  background: #e65100;
+}
+
+.bouton-danger {
+  background: #d33;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  margin-right: auto;
 }

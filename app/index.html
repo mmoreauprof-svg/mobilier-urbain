@@ -22,11 +22,14 @@
     </div>
   </div>
 
-  <button id="bouton-ajouter-mobilier" class="bouton-flottant">+ Mobilier urbain</button>
+  <div class="boutons-flottants">
+    <button id="bouton-ajouter-mobilier" class="bouton-flottant">+ Mobilier urbain</button>
+    <button id="bouton-ajouter-commerce" class="bouton-flottant bouton-flottant-commerce">+ Commerce</button>
+  </div>
 
   <div id="modal-mobilier-urbain" class="modal-overlay" hidden>
     <div class="modal-contenu">
-      <h2>Nouveau mobilier urbain</h2>
+      <h2 id="titre-modal-mobilier">Nouveau mobilier urbain</h2>
       <form id="form-mobilier-urbain">
         <label for="mobilier-type">Type</label>
         <select id="mobilier-type">
@@ -52,8 +55,51 @@
         <textarea id="mobilier-commentaire" rows="2"></textarea>
 
         <div class="modal-boutons">
+          <button type="button" id="bouton-supprimer-mobilier" class="bouton-danger" hidden>Supprimer</button>
           <button type="button" id="bouton-annuler-mobilier">Annuler</button>
           <button type="button" id="bouton-enregistrer-mobilier">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="modal-commerce" class="modal-overlay" hidden>
+    <div class="modal-contenu">
+      <h2 id="titre-modal-commerce">Nouveau commerce</h2>
+      <form id="form-commerce">
+        <label for="commerce-nom">Nom du commerce (optionnel)</label>
+        <input type="text" id="commerce-nom" placeholder="Ex. Boulangerie Dupont">
+
+        <label for="commerce-type">Type de commerce</label>
+        <select id="commerce-type">
+          <option>Supérette</option>
+          <option>Coiffeur</option>
+          <option>Banque</option>
+          <option>Vêtements</option>
+          <option>Boulangerie</option>
+          <option>Restaurant</option>
+          <option>Onglerie</option>
+          <option>Opticien</option>
+          <option>Autre commerce</option>
+          <option>Autre service</option>
+        </select>
+
+        <label for="commerce-etat">État</label>
+        <select id="commerce-etat">
+          <option>Vacant</option>
+          <option>Occupé</option>
+        </select>
+
+        <label for="commerce-date-fermeture">Date de fermeture (mois/année, optionnel)</label>
+        <input type="month" id="commerce-date-fermeture">
+
+        <label for="commerce-commentaire">Commentaire (optionnel)</label>
+        <textarea id="commerce-commentaire" rows="2"></textarea>
+
+        <div class="modal-boutons">
+          <button type="button" id="bouton-supprimer-commerce" class="bouton-danger" hidden>Supprimer</button>
+          <button type="button" id="bouton-annuler-commerce">Annuler</button>
+          <button type="button" id="bouton-enregistrer-commerce">Enregistrer</button>
         </div>
       </form>
     </div>
@@ -64,7 +110,9 @@
   <script src="js/position.js"></script>
   <script src="js/device.js"></script>
   <script src="js/geo.js"></script>
+  <script src="js/util.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/mobilier.js"></script>
+  <script src="js/commerce.js"></script>
 </body>
 </html>

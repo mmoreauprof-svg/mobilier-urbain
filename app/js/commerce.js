@@ -1,0 +1,152 @@
+// Saisie, modification et suppression d'un commerce (§6.3, §6.4 des spécifications)
+
+const commerceMarkers = {};
+let uidEnEditionCommerce = null;
+
+function couleurCommerce(etat) {
+  return etat === 'Occupé' ? '#2e7d32' : '#e65100';
+}
+
+function construirePopupCommerce(objet) {
+  const nom = objet.nom_commerce ? echapperHtml(objet.nom_commerce) : '(local sans enseigne)';
+  const dateFermetureHtml = objet.date_fermeture ? `<br>Fermé depuis : ${echapperHtml(objet.date_fermeture)}` : '';
+  const commentaireHtml = objet.commentaire ? `<br>${echapperHtml(objet.commentaire)}` : '';
+  return `<strong>${nom}</strong><br>${echapperHtml(objet.type_commerce)}<br>État : ${echapperHtml(objet.etat)}${dateFermetureHtml}${commentaireHtml}<br><button onclick="ouvrirEditionCommerce('${objet.uid}')">Modifier / Supprimer</button>`;
+}
+
+function afficherMarqueurCommerce(objet) {
+  const marker = L.circleMarker([objet.lat, objet.lon], {
+    radius: 8,
+    color: '#ffffff',
+    weight: 2,
+    fillColor: couleurCommerce(objet.etat),
+    fillOpacity: 1
+  }).addTo(map);
+  marker.bindPopup(construirePopupCommerce(objet));
+  commerceMarkers[objet.uid] = marker;
+}
+
+function mettreAJourMarqueurCommerce(objet) {
+  const marker = commerceMarkers[objet.uid];
+  if (marker) {
+    marker.setStyle({ fillColor: couleurCommerce(objet.etat) });
+    marker.setPopupContent(construirePopupCommerce(objet));
+  }
+}
+
+function ouvrirFormulaireCommerce() {
+  if (!getDernierePosition()) {
+    alert('Position GPS non disponible pour le moment. Réessayez dans quelques secondes.');
+    return;
+  }
+  uidEnEditionCommerce = null;
+  document.getElementById('titre-modal-commerce').textContent = 'Nouveau commerce';
+  document.getElementById('bouton-enregistrer-commerce').textContent = 'Enregistrer';
+  document.getElementById('bouton-supprimer-commerce').hidden = true;
+  document.getElementById('modal-commerce').hidden = false;
+}
+
+function fermerFormulaireCommerce() {
+  document.getElementById('modal-commerce').hidden = true;
+  document.getElementById('form-commerce').reset();
+  uidEnEditionCommerce = null;
+}
+
+async function ouvrirEditionCommerce(uid) {
+  const objets = await listerCommerces();
+  const objet = objets.find((o) => o.uid === uid);
+  if (!objet) return;
+
+  uidEnEditionCommerce = uid;
+  document.getElementById('commerce-nom').value = objet.nom_commerce || '';
+  document.getElementById('commerce-type').value = objet.type_commerce;
+  document.getElementById('commerce-etat').value = objet.etat;
+  document.getElementById('commerce-date-fermeture').value = objet.date_fermeture || '';
+  document.getElementById('commerce-commentaire').value = objet.commentaire || '';
+
+  document.getElementById('titre-modal-commerce').textContent = 'Modifier le commerce';
+  document.getElementById('bouton-enregistrer-commerce').textContent = 'Enregistrer les modifications';
+  document.getElementById('bouton-supprimer-commerce').hidden = false;
+
+  map.closePopup();
+  document.getElementById('modal-commerce').hidden = false;
+}
+
+async function enregistrerCommerceDepuisFormulaire() {
+  const nomCommerce = document.getElementById('commerce-nom').value.trim();
+  const typeCommerce = document.getElementById('commerce-type').value;
+  const etat = document.getElementById('commerce-etat').value;
+  const dateFermeture = document.getElementById('commerce-date-fermeture').value;
+  const commentaire = document.getElementById('commerce-commentaire').value.trim();
+
+  if (uidEnEditionCommerce) {
+    const objets = await listerCommerces();
+    const existant = objets.find((o) => o.uid === uidEnEditionCommerce);
+    const objet = {
+      ...existant,
+      nom_commerce: nomCommerce,
+      type_commerce: typeCommerce,
+      etat,
+      date_fermeture: dateFermeture,
+      commentaire,
+      last_update: new Date().toISOString()
+    };
+    await enregistrerCommerce(objet);
+    mettreAJourMarqueurCommerce(objet);
+    fermerFormulaireCommerce();
+    return;
+  }
+
+  const position = getDernierePosition();
+  if (!position) {
+    alert('Position GPS perdue, réessayez.');
+    return;
+  }
+
+  const existants = await listerCommerces();
+  const proche = objetProcheExiste(existants, typeCommerce, 'type_commerce', position, SEUIL_DOUBLON_METRES);
+  if (proche && !confirm(`Un commerce de type "${typeCommerce}" existe déjà à moins de ${SEUIL_DOUBLON_METRES} m — enregistrer quand même ?`)) {
+    return;
+  }
+
+  const objet = {
+    uid: genererUid(),
+    nom_commerce: nomCommerce,
+    type_commerce: typeCommerce,
+    etat,
+    date_fermeture: dateFermeture,
+    commentaire,
+    last_update: new Date().toISOString(),
+    lat: position[0],
+    lon: position[1]
+  };
+
+  await enregistrerCommerce(objet);
+  afficherMarqueurCommerce(objet);
+  fermerFormulaireCommerce();
+}
+
+async function supprimerCommerceEnEdition() {
+  if (!uidEnEditionCommerce) return;
+  if (!confirm('Supprimer définitivement ce commerce ?')) return;
+
+  await supprimerDeStore('commerce', uidEnEditionCommerce);
+  const marker = commerceMarkers[uidEnEditionCommerce];
+  if (marker) {
+    map.removeLayer(marker);
+    delete commerceMarkers[uidEnEditionCommerce];
+  }
+  fermerFormulaireCommerce();
+}
+
+async function chargerCommercesExistants() {
+  const objets = await listerCommerces();
+  objets.forEach(afficherMarqueurCommerce);
+}
+
+document.getElementById('bouton-ajouter-commerce').addEventListener('click', ouvrirFormulaireCommerce);
+document.getElementById('bouton-annuler-commerce').addEventListener('click', fermerFormulaireCommerce);
+document.getElementById('bouton-enregistrer-commerce').addEventListener('click', enregistrerCommerceDepuisFormulaire);
+document.getElementById('bouton-supprimer-commerce').addEventListener('click', supprimerCommerceEnEdition);
+
+chargerCommercesExistants();

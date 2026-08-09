@@ -1,5 +1,7 @@
 // Fonctions géométriques pures (§6.1bis des spécifications) — testées dans app/tests/test.html
 
+const SEUIL_DOUBLON_METRES = 5;
+
 function calculDistanceMetres(latlng1, latlng2) {
   const R = 6371000; // rayon terrestre moyen, en mètres
   const rad = Math.PI / 180;
