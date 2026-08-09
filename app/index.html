@@ -10,7 +10,61 @@
 <body>
   <div id="map"></div>
 
+  <div id="code-appareil-label" hidden></div>
+
+  <div id="modal-code-appareil" class="modal-overlay" hidden>
+    <div class="modal-contenu">
+      <h2>Identification de l'appareil</h2>
+      <p>Entrez un code court (2 à 4 lettres) pour identifier cet appareil — par exemple vos initiales. Il ne sera demandé qu'une seule fois.</p>
+      <input type="text" id="input-code-appareil" maxlength="4" placeholder="Ex. MM">
+      <p id="erreur-code-appareil" class="erreur" hidden></p>
+      <button id="bouton-valider-code-appareil">Valider</button>
+    </div>
+  </div>
+
+  <button id="bouton-ajouter-mobilier" class="bouton-flottant">+ Mobilier urbain</button>
+
+  <div id="modal-mobilier-urbain" class="modal-overlay" hidden>
+    <div class="modal-contenu">
+      <h2>Nouveau mobilier urbain</h2>
+      <form id="form-mobilier-urbain">
+        <label for="mobilier-type">Type</label>
+        <select id="mobilier-type">
+          <option>Banc</option>
+          <option>Corbeille</option>
+          <option>Distributeur de sacs</option>
+          <option>Arrêt de bus</option>
+          <option>Abri bus</option>
+        </select>
+
+        <label for="mobilier-etat">État</label>
+        <select id="mobilier-etat">
+          <option>Bon</option>
+          <option>Moyen</option>
+          <option>Mauvais</option>
+          <option>HS</option>
+        </select>
+
+        <label for="mobilier-nombre">Nombre</label>
+        <input type="number" id="mobilier-nombre" value="1" min="1">
+
+        <label for="mobilier-commentaire">Commentaire (optionnel)</label>
+        <textarea id="mobilier-commentaire" rows="2"></textarea>
+
+        <div class="modal-boutons">
+          <button type="button" id="bouton-annuler-mobilier">Annuler</button>
+          <button type="button" id="bouton-enregistrer-mobilier">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script src="lib/leaflet/leaflet.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/position.js"></script>
+  <script src="js/device.js"></script>
+  <script src="js/geo.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/mobilier.js"></script>
 </body>
 </html>

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tests automatisés — logique pure</title>
+  <style>
+    body { font-family: monospace; padding: 16px; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>Tests automatisés — logique pure</h1>
+  <div id="resultats">Exécution en cours…</div>
+
+  <script src="../js/geo.js"></script>
+  <script src="../js/device.js"></script>
+  <script>
+    const resultats = [];
+    let ok = 0;
+    let total = 0;
+
+    function verifier(nom, condition) {
+      total++;
+      if (condition) {
+        ok++;
+        resultats.push(`OK   - ${nom}`);
+      } else {
+        resultats.push(`FAIL - ${nom}`);
+      }
+    }
+
+    // --- calculDistanceMetres (app/js/geo.js) ---
+    verifier(
+      'distance nulle entre deux points identiques',
+      calculDistanceMetres([48.8032, 2.1673], [48.8032, 2.1673]) < 0.01
+    );
+    verifier(
+      'distance ~111 km pour 1 degré de latitude',
+      Math.abs(calculDistanceMetres([0, 0], [1, 0]) - 111195) < 500
+    );
+    verifier(
+      'distance courte plausible pour un petit écart de coordonnées',
+      (() => {
+        const d = calculDistanceMetres([48.8032, 2.1673], [48.80321, 2.16731]);
+        return d > 0 && d < 20;
+      })()
+    );
+
+    // --- objetProcheExiste (app/js/geo.js) ---
+    const objetsTest = [
+      { type_objet: 'Banc', lat: 48.8032, lon: 2.1673 },
+      { type_objet: 'Corbeille', lat: 48.8100, lon: 2.1700 }
+    ];
+    verifier(
+      'doublon détecté : même type, même position',
+      objetProcheExiste(objetsTest, 'Banc', 'type_objet', [48.8032, 2.1673], 5) === true
+    );
+    verifier(
+      'pas de doublon : type différent au même endroit',
+      objetProcheExiste(objetsTest, 'Arrêt de bus', 'type_objet', [48.8032, 2.1673], 5) === false
+    );
+    verifier(
+      'pas de doublon : même type mais loin',
+      objetProcheExiste(objetsTest, 'Banc', 'type_objet', [48.9, 2.3], 5) === false
+    );
+
+    // --- codeAppareilValide (app/js/device.js) ---
+    verifier('code valide 2 lettres', codeAppareilValide('MM') === true);
+    verifier('code valide 4 lettres', codeAppareilValide('IPHO') === true);
+    verifier('code invalide avec chiffre', codeAppareilValide('M1') === false);
+    verifier('code invalide vide', codeAppareilValide('') === false);
+    verifier('code invalide trop long', codeAppareilValide('TROPLONG') === false);
+
+    document.getElementById('resultats').textContent =
+      resultats.join('\n') + `\n\n${ok}/${total} tests OK`;
+  </script>
+</body>
+</html>

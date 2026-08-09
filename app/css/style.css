@@ -11,3 +11,85 @@ html, body {
   left: 0;
   right: 0;
 }
+
+#code-appareil-label {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.85);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font: 12px sans-serif;
+}
+
+.modal-overlay {
+  display: flex;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.modal-overlay[hidden] {
+  display: none;
+}
+
+.modal-contenu {
+  background: white;
+  padding: 24px;
+  border-radius: 8px;
+  max-width: 320px;
+  width: 90%;
+  font-family: sans-serif;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.modal-contenu input,
+.modal-contenu select,
+.modal-contenu textarea {
+  width: 100%;
+  padding: 8px;
+  font-size: 16px;
+  box-sizing: border-box;
+  margin-top: 4px;
+  margin-bottom: 12px;
+}
+
+.modal-contenu label {
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.modal-contenu button {
+  padding: 8px 16px;
+  font-size: 14px;
+}
+
+.modal-boutons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.erreur {
+  color: #d33;
+  font-size: 13px;
+}
+
+.bouton-flottant {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  z-index: 1000;
+  padding: 12px 18px;
+  font-size: 15px;
+  border: none;
+  border-radius: 24px;
+  background: #1a73e8;
+  color: white;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
