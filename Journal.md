@@ -33,4 +33,5 @@
 2026-08-09 - Test - Points 1-2 validés par l'utilisateur sur PC (cause du blocage géolocalisation : autorisation Chrome désactivée). Procédure d'activation de la géolocalisation (service Windows + autorisation site Chrome + simulation DevTools) ajoutée à 'Procédures Test.md'.
 2026-08-09 - Développement - Étape 4, point 3 : stockage local IndexedDB ('app/js/storage.js', bases 'mobilier_urbain'/'commerce', clé = uid) et calcul géométrique pur ('app/js/geo.js', distance et détection de proximité).
 2026-08-09 - Développement - Étape 4, point 4 : saisie d'un mobilier urbain ('app/js/mobilier.js') — bouton, formulaire, génération de uid, détection de doublon à 5 m avec confirmation, affichage du marqueur, restauration automatique au démarrage. Création de 'app/tests/test.html' (11 assertions, 11/11 OK) conformément à 'Tests-Automatises.md'. Vérifications fonctionnelles autonomes concluantes (enregistrement, doublon accepté/refusé, persistance après rechargement). Non commité, en attente du test utilisateur PC.
+2026-08-09 - Test - Points 3-4 validés par l'utilisateur sur PC. Commit du code (b9cbf8b) et de la documentation associée (f6ca302).
 
