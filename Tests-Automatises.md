@@ -42,3 +42,5 @@ Suite exécutable : `app/tests/test.html`
 | `codeAppareilValide` (device.js) | 5 | 2026-08-09 — 11/11 OK |
 
 Vérifications fonctionnelles complémentaires (via l'outil navigateur de Claude, hors `test.html`) sur le parcours de saisie d'un mobilier urbain : génération de `uid` séquentiel, enregistrement IndexedDB, affichage du marqueur, avertissement de doublon (accepté et refusé), persistance après rechargement de la page. Toutes concluantes le 2026-08-09.
+
+Vérifications fonctionnelles complémentaires sur la saisie d'un commerce et sur la modification/suppression (mobilier urbain et commerce) : création, formulaire pré-rempli à l'édition, mise à jour en place (même `uid`), couleur du marqueur commerce mise à jour selon l'état, suppression effective (base + marqueur). Toutes concluantes le 2026-08-09.

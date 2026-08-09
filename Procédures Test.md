@@ -33,6 +33,18 @@ start http://localhost:8000 & python -m http.server 8000
 
 En cas de doute sur la cause d'un blocage : `F12` → onglet `Console` → recharger la page → lire le message commençant par « Géolocalisation indisponible : ... ».
 
+### Réinitialiser les données entre deux tests
+
+Le stockage local (position, mobilier urbain, commerces, code appareil) est **volontairement permanent** d'une session à l'autre — c'est une fonctionnalité, pas un bug. Pour repartir d'une base vide avant un nouveau test :
+
+- **Via les outils développeur (méthode simple)** : `F12` → onglet `Application` → section `Storage` (panneau de gauche) → bouton `Clear site data`.
+- **Via la console (plus rapide)** : `F12` → onglet `Console`, coller puis valider :
+  ```
+  localStorage.clear(); indexedDB.deleteDatabase('MobilierUrbainDB'); location.reload();
+  ```
+
+Note : Claude ne peut pas réinitialiser les données de votre navigateur depuis la conversation — ses propres vérifications automatisées tournent dans un navigateur séparé, isolé du vôtre.
+
 ### Simuler une position GPS précise (alternative fiable, PC sans GPS)
 
 `F12` → menu `⋮` → `More tools` / `Plus d'outils` → `Sensors` → section `Location` → choisir des coordonnées personnalisées (ex. Viroflay : `48.8032, 2.1673`).
