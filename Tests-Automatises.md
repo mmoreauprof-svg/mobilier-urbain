@@ -33,8 +33,12 @@ Avant de rapporter qu'une itération est terminée, Claude pilote lui-même l'ap
 
 ## État actuel de la suite
 
-*(vide — sera renseigné dès la première fonction de logique pure de l'étape 4)*
+Suite exécutable : `app/tests/test.html`
 
 | Fonction testée | Nombre de cas | Dernière validation |
 |---|---|---|
-| — | — | — |
+| `calculDistanceMetres` (geo.js) | 3 | 2026-08-09 — 11/11 OK |
+| `objetProcheExiste` (geo.js) | 3 | 2026-08-09 — 11/11 OK |
+| `codeAppareilValide` (device.js) | 5 | 2026-08-09 — 11/11 OK |
+
+Vérifications fonctionnelles complémentaires (via l'outil navigateur de Claude, hors `test.html`) sur le parcours de saisie d'un mobilier urbain : génération de `uid` séquentiel, enregistrement IndexedDB, affichage du marqueur, avertissement de doublon (accepté et refusé), persistance après rechargement de la page. Toutes concluantes le 2026-08-09.
