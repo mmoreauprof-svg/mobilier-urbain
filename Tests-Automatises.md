@@ -92,3 +92,31 @@ Le monkey-patching des fonctions `enregistrerMobilierUrbain`/`enregistrerCommerc
 **Compromis de test** : `dernierePosition` (variable interne de `position.js`) est remise à `null` directement dans les tests pour simuler "pas encore de position GPS" — il n'existe pas de déclencheur UI pour ce cas. Comparable au monkey-patching déjà accepté plus haut pour simuler un échec IndexedDB.
 
 **Suite complète : 46/46 tests OK** (18 logique pure + 28 parcours fonctionnels), rejouée deux fois de suite.
+
+## Étape 4, points 9-10 — Export / Import GPKG (2026-08-22)
+
+9 nouveaux tests couvrant `app/js/gpkg.js` (4 logique pure + 5 fonctionnels) :
+
+- **Logique pure** : `encoderPointGeoPackageBinary` (en-tête GeoPackageBinary valide — magie `GP`, `srs_id`, type WKB Point — et coordonnées exactes en lon/lat, pas lat/lon) ; `nomFichierExport` (nom lisible avec code appareil et date, y compris code appareil manquant).
+- **Fonctionnel** : export produisant les 6 couches attendues avec leur identifiant QGIS en français et des données fidèles ; sélection d'un fichier via l'input réel (`change` event, pas d'appel direct) ouvrant le choix remplacer/fusionner ; fusion ignorant les doublons par `uid` tout en ajoutant les objets réellement nouveaux ; remplacement vidant base et marqueurs avant de charger le nouveau contenu ; fichier invalide affichant une alerte sans planter.
+
+**Deux bugs de librairie découverts et contournés** pendant l'implémentation (`geopackage-js` 4.2.8, adaptateur navigateur sql.js) — voir la note technique en §6.5bis de `Specifications.md` et l'en-tête de `app/js/gpkg.js` pour le détail :
+1. Paramètres SQL nommés manquants dans les insertions générées par la librairie (`$id`, `$geometry`) → écriture en SQL brut avec géométrie encodée à la main.
+2. Lecture indexée cassée (`projectBoundingBox is not a function`) → lecture via `dao.queryForAll()`/`dao.getRow()`.
+
+Un troisième bug, cette fois de conception dans notre propre code, a été trouvé et corrigé pendant la mise en place des tests : le chemin vers `sql-wasm.wasm` était codé en dur relatif à la page appelante, cassant l'export/import dès que `gpkg.js` est chargé depuis `app/tests/test.html` (sous-dossier) plutôt que `app/index.html`. Corrigé en calculant le chemin relativement à `document.currentScript.src`.
+
+**Suite complète : 55/55 tests OK** (22 logique pure + 33 parcours fonctionnels), rejouée deux fois de suite.
+
+## Icônes QGIS dans l'export GPKG — tentative abandonnée (2026-08-22)
+
+Un essai d'intégrer les icônes de l'app comme styles QGIS par défaut (table `layer_styles`, QML avec icônes SVG en base64) a été fait puis retiré le même jour : dans QGIS 3.16.1 réel, le symbole reste affiché comme "Symbole SVG" non résolu (icône absente). Sans installation QGIS disponible pour Claude, le diagnostic/itération n'était pas efficace — retiré à la demande de l'utilisateur plutôt que de continuer à deviner. Code et tests associés supprimés ; retour à la suite précédente (55/55).
+
+## Filtre par catégorie et badge de quantité (2026-08-22)
+
+Deux nouvelles fonctionnalités demandées suite au retour utilisateur sur l'export GPKG :
+
+- **Filtre d'affichage** (§6.1quater) : `app/js/filtres.js`, panneau à cocher pour 6 catégories (5 types de mobilier urbain + commerce). 3 tests fonctionnels : décocher masque les marqueurs déjà affichés et recocher les réaffiche ; un objet créé pendant qu'une catégorie est masquée reste masqué jusqu'à réactivation (pas seulement les objets déjà présents à l'ouverture) ; le bouton "Filtres" bascule bien la visibilité du panneau.
+- **Badge de quantité** (§6.1) : `iconeMobilier` accepte désormais un second paramètre `nombre` — icône simple inchangée si absent ou ≤ 1 (rétrocompatible avec les appels existants), bascule vers un `L.divIcon` avec un badge superposé si > 1. 2 tests logique pure.
+
+**Suite complète : 60/60 tests OK** (24 logique pure + 36 parcours fonctionnels), rejouée deux fois de suite.

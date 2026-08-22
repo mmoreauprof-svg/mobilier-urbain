@@ -56,6 +56,16 @@ Le CdC initial recommandait Lambert-93 (EPSG:2154). **Décision : WGS84 (EPSG:43
   - **Mobilier urbain** : une icône distincte par type — banc, corbeille, distributeur de sacs, arrêt de bus, abri bus (5 icônes à concevoir).
   - **Commerce** : une même icône, en **deux couleurs** selon l'état — une couleur pour Ouvert, une autre pour Fermé/vacant.
 - Fonction de zoom, dezoom, déplacement.
+- **Badge de quantité** ✅ : quand `nombre` > 1 pour un mobilier urbain, un badge numérique se superpose à son icône (coin supérieur droit) indiquant le nombre d'éléments à cet endroit. Pas de badge quand `nombre` = 1 (cas par défaut, le plus courant).
+
+### 6.1quater Filtre d'affichage par catégorie ✅
+
+Un contrôle sur la carte (bouton "Filtres" en haut à gauche, sous le zoom) permet d'afficher/masquer indépendamment chaque catégorie d'objet, par une case à cocher :
+
+- Les 5 types de mobilier urbain (Banc, Corbeille, Distributeur de sacs, Arrêt de bus, Abri bus).
+- Les commerces, en une seule catégorie (cohérent avec le regroupement retenu pour l'export GPKG, cf. §6.5bis — pas de filtre par `type_commerce` ou par état).
+
+Toutes les catégories sont cochées (visibles) par défaut à l'ouverture. Le filtre agit uniquement sur l'affichage des marqueurs sur la carte ; il ne modifie jamais les données enregistrées.
 
 ### 6.1bis Détection de doublon ✅
 Lors d'une nouvelle saisie, si un objet du **même type** existe déjà à **moins de 5 mètres**, un avertissement s'affiche avant l'enregistrement ("Un [type] existe déjà à proximité — enregistrer quand même ?"). Le seuil (5 m) est un paramètre modifiable dans le code, pas une saisie utilisateur.
@@ -123,6 +133,14 @@ Objectif : pouvoir afficher/masquer chaque catégorie indépendamment dans QGIS,
 - **Identifiants** : `uid` (texte, dédoublonnage) et `fid` (entier, imposé par GeoPackage) suivent les mêmes règles que définies en §3bis, appliquées indépendamment dans chacune des 6 tables.
 - Cette séparation en couches est **propre au fichier `.gpkg`** : le stockage local (IndexedDB) reste organisé en 2 bases seulement (`mobilier_urbain`, `commerce`), comme décrit en §3 — l'export répartit vers les 6 couches, l'import consolide depuis les 6 couches vers les 2 bases.
 
+**Note technique — bugs de `geopackage-js` 4.2.8 contournés** ✅ : la librairie vendorisée a deux bugs sous son adaptateur navigateur (sql.js), découverts et contournés à l'implémentation :
+1. `dao.create()`/`addGeoJSONFeatureToGeoPackage()` omettent certains paramètres nommés de la requête SQL générée (`$id`, `$geometry`...), que sql.js refuse. Contournement : écriture en SQL brut (`gp.connection.insert`) avec tous les paramètres explicitement fournis, géométrie (points uniquement) encodée à la main au format GeoPackageBinary plutôt que via la classe `Geometry` de la librairie.
+2. `iterateGeoJSONFeatures()`/`queryForGeoJSONFeaturesInTable()` échouent (`projectBoundingBox is not a function`). Contournement : lecture via `dao.queryForAll()` + `dao.getRow()` + `row.geometry.toGeoJSON()`.
+
+Détail et code dans `app/js/gpkg.js` (commentaire d'en-tête). Sans objet pour la suite du projet sauf mise à jour de cette librairie.
+
+**Icônes dans QGIS — tentative abandonnée** : un essai d'intégrer les icônes de l'app comme styles QGIS par défaut (table `layer_styles`, symboles SVG encodés en base64) a été testé le 2026-08-22 puis retiré : QGIS 3.16.1 affiche "Symbole SVG" mais pas l'image elle-même (Claude n'a pas d'installation QGIS pour diagnostiquer/itérer efficacement). Les couches exportées gardent la symbologie par défaut de QGIS ; la mise en forme visuelle reste à la main de l'utilisateur dans QGIS s'il le souhaite.
+
 **Emplacement des fichiers** ✅ — diffère selon la plateforme :
 - **Import** : identique partout, via le sélecteur de fichiers natif (`<input type="file">`) — ouvre l'app Fichiers (iPhone) ou l'équivalent Android, navigation manuelle jusqu'au `.gpkg`.
 - **Export sur Android (Chrome)** : boîte de dialogue "Enregistrer sous" native (File System Access API) — choix du dossier et du nom à chaque export.
@@ -159,6 +177,6 @@ Une fois les points ouverts tranchés : structure de dossiers, dépôt Git local
 6. ✅ Modification / suppression
 7. ✅ Icônes stylisées définitives (mobilier urbain + couleurs commerce)
 8. ✅ Sélection manuelle d'un point sur la carte (repli sans GPS, cf. §6.4bis)
-9. Export GPKG (6 couches : 5 pour le mobilier urbain par type, 1 pour les commerces — cf. §6.5bis) — **en attente de spécifications détaillées avant démarrage**
-10. Import GPKG (remplacer / fusionner, consolidation des 6 couches vers les 2 bases locales — cf. §6.5bis) — **en attente de spécifications détaillées avant démarrage**
+9. ✅ Export GPKG (6 couches : 5 pour le mobilier urbain par type, 1 pour les commerces — cf. §6.5bis)
+10. ✅ Import GPKG (remplacer / fusionner, consolidation des 6 couches vers les 2 bases locales — cf. §6.5bis)
 11. Installabilité PWA (manifest, icône d'app, écran d'accueil)
