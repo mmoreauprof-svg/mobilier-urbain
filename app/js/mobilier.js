@@ -9,7 +9,7 @@ function construirePopupMobilier(objet) {
 }
 
 function afficherMarqueurMobilier(objet) {
-  const marker = L.marker([objet.lat, objet.lon]).addTo(map);
+  const marker = L.marker([objet.lat, objet.lon], { icon: iconeMobilier(objet.type_objet) }).addTo(map);
   marker.bindPopup(construirePopupMobilier(objet));
   mobilierMarkers[objet.uid] = marker;
 }
@@ -17,6 +17,7 @@ function afficherMarqueurMobilier(objet) {
 function mettreAJourMarqueurMobilier(objet) {
   const marker = mobilierMarkers[objet.uid];
   if (marker) {
+    marker.setIcon(iconeMobilier(objet.type_objet));
     marker.setPopupContent(construirePopupMobilier(objet));
   }
 }
@@ -64,67 +65,92 @@ async function enregistrerMobilierDepuisFormulaire() {
   const nombre = parseInt(document.getElementById('mobilier-nombre').value, 10) || 1;
   const commentaire = document.getElementById('mobilier-commentaire').value.trim();
 
-  if (uidEnEditionMobilier) {
-    const objets = await listerMobilierUrbain();
-    const existant = objets.find((o) => o.uid === uidEnEditionMobilier);
+  try {
+    if (uidEnEditionMobilier) {
+      const objets = await listerMobilierUrbain();
+      const existant = objets.find((o) => o.uid === uidEnEditionMobilier);
+      if (!existant) {
+        alert('Ce mobilier urbain a été supprimé entre-temps, impossible de le modifier.');
+        fermerFormulaireMobilier();
+        return;
+      }
+      const objet = {
+        ...existant,
+        type_objet: typeObjet,
+        etat,
+        nombre,
+        commentaire,
+        last_update: new Date().toISOString()
+      };
+      await enregistrerMobilierUrbain(objet);
+      mettreAJourMarqueurMobilier(objet);
+      fermerFormulaireMobilier();
+      return;
+    }
+
+    const position = getDernierePosition();
+    if (!position) {
+      alert('Position GPS perdue, réessayez.');
+      return;
+    }
+
+    const existants = await listerMobilierUrbain();
+    const proche = objetProcheExiste(existants, typeObjet, 'type_objet', position, SEUIL_DOUBLON_METRES);
+    if (proche && !confirm(`Un ${typeObjet} existe déjà à moins de ${SEUIL_DOUBLON_METRES} m — enregistrer quand même ?`)) {
+      return;
+    }
+
     const objet = {
-      ...existant,
+      uid: genererUid(),
       type_objet: typeObjet,
       etat,
       nombre,
       commentaire,
-      last_update: new Date().toISOString()
+      last_update: new Date().toISOString(),
+      lat: position[0],
+      lon: position[1]
     };
+
     await enregistrerMobilierUrbain(objet);
-    mettreAJourMarqueurMobilier(objet);
+    afficherMarqueurMobilier(objet);
     fermerFormulaireMobilier();
-    return;
+  } catch (erreur) {
+    console.error('Échec de l\'enregistrement du mobilier urbain :', erreur);
+    if (erreur && erreur.message === 'Code appareil manquant') {
+      alert('Code appareil manquant — merci de le ressaisir avant de continuer.');
+      demanderReidentificationAppareil();
+      return;
+    }
+    alert('Échec de l\'enregistrement — cette saisie n\'a PAS été sauvegardée. Réessayez.');
   }
-
-  const position = getDernierePosition();
-  if (!position) {
-    alert('Position GPS perdue, réessayez.');
-    return;
-  }
-
-  const existants = await listerMobilierUrbain();
-  const proche = objetProcheExiste(existants, typeObjet, 'type_objet', position, SEUIL_DOUBLON_METRES);
-  if (proche && !confirm(`Un ${typeObjet} existe déjà à moins de ${SEUIL_DOUBLON_METRES} m — enregistrer quand même ?`)) {
-    return;
-  }
-
-  const objet = {
-    uid: genererUid(),
-    type_objet: typeObjet,
-    etat,
-    nombre,
-    commentaire,
-    last_update: new Date().toISOString(),
-    lat: position[0],
-    lon: position[1]
-  };
-
-  await enregistrerMobilierUrbain(objet);
-  afficherMarqueurMobilier(objet);
-  fermerFormulaireMobilier();
 }
 
 async function supprimerMobilierEnEdition() {
   if (!uidEnEditionMobilier) return;
   if (!confirm('Supprimer définitivement ce mobilier urbain ?')) return;
 
-  await supprimerDeStore('mobilier_urbain', uidEnEditionMobilier);
-  const marker = mobilierMarkers[uidEnEditionMobilier];
-  if (marker) {
-    map.removeLayer(marker);
-    delete mobilierMarkers[uidEnEditionMobilier];
+  try {
+    await supprimerDeStore('mobilier_urbain', uidEnEditionMobilier);
+    const marker = mobilierMarkers[uidEnEditionMobilier];
+    if (marker) {
+      map.removeLayer(marker);
+      delete mobilierMarkers[uidEnEditionMobilier];
+    }
+    fermerFormulaireMobilier();
+  } catch (erreur) {
+    console.error('Échec de la suppression du mobilier urbain :', erreur);
+    alert('Échec de la suppression. Réessayez.');
   }
-  fermerFormulaireMobilier();
 }
 
 async function chargerMobilierExistant() {
-  const objets = await listerMobilierUrbain();
-  objets.forEach(afficherMarqueurMobilier);
+  try {
+    const objets = await listerMobilierUrbain();
+    objets.forEach(afficherMarqueurMobilier);
+  } catch (erreur) {
+    console.error('Échec du chargement du mobilier urbain existant :', erreur);
+    afficherBanniereErreur('Impossible de charger les mobiliers urbains déjà enregistrés sur cet appareil — ne continuez pas la saisie sans vérifier ce problème.');
+  }
 }
 
 document.getElementById('bouton-ajouter-mobilier').addEventListener('click', ouvrirFormulaireMobilier);

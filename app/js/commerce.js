@@ -3,10 +3,6 @@
 const commerceMarkers = {};
 let uidEnEditionCommerce = null;
 
-function couleurCommerce(etat) {
-  return etat === 'Occupé' ? '#2e7d32' : '#e65100';
-}
-
 function construirePopupCommerce(objet) {
   const nom = objet.nom_commerce ? echapperHtml(objet.nom_commerce) : '(local sans enseigne)';
   const dateFermetureHtml = objet.date_fermeture ? `<br>Fermé depuis : ${echapperHtml(objet.date_fermeture)}` : '';
@@ -15,13 +11,7 @@ function construirePopupCommerce(objet) {
 }
 
 function afficherMarqueurCommerce(objet) {
-  const marker = L.circleMarker([objet.lat, objet.lon], {
-    radius: 8,
-    color: '#ffffff',
-    weight: 2,
-    fillColor: couleurCommerce(objet.etat),
-    fillOpacity: 1
-  }).addTo(map);
+  const marker = L.marker([objet.lat, objet.lon], { icon: iconeCommerce(objet.etat) }).addTo(map);
   marker.bindPopup(construirePopupCommerce(objet));
   commerceMarkers[objet.uid] = marker;
 }
@@ -29,7 +19,7 @@ function afficherMarqueurCommerce(objet) {
 function mettreAJourMarqueurCommerce(objet) {
   const marker = commerceMarkers[objet.uid];
   if (marker) {
-    marker.setStyle({ fillColor: couleurCommerce(objet.etat) });
+    marker.setIcon(iconeCommerce(objet.etat));
     marker.setPopupContent(construirePopupCommerce(objet));
   }
 }
@@ -79,69 +69,94 @@ async function enregistrerCommerceDepuisFormulaire() {
   const dateFermeture = document.getElementById('commerce-date-fermeture').value;
   const commentaire = document.getElementById('commerce-commentaire').value.trim();
 
-  if (uidEnEditionCommerce) {
-    const objets = await listerCommerces();
-    const existant = objets.find((o) => o.uid === uidEnEditionCommerce);
+  try {
+    if (uidEnEditionCommerce) {
+      const objets = await listerCommerces();
+      const existant = objets.find((o) => o.uid === uidEnEditionCommerce);
+      if (!existant) {
+        alert('Ce commerce a été supprimé entre-temps, impossible de le modifier.');
+        fermerFormulaireCommerce();
+        return;
+      }
+      const objet = {
+        ...existant,
+        nom_commerce: nomCommerce,
+        type_commerce: typeCommerce,
+        etat,
+        date_fermeture: dateFermeture,
+        commentaire,
+        last_update: new Date().toISOString()
+      };
+      await enregistrerCommerce(objet);
+      mettreAJourMarqueurCommerce(objet);
+      fermerFormulaireCommerce();
+      return;
+    }
+
+    const position = getDernierePosition();
+    if (!position) {
+      alert('Position GPS perdue, réessayez.');
+      return;
+    }
+
+    const existants = await listerCommerces();
+    const proche = objetProcheExiste(existants, typeCommerce, 'type_commerce', position, SEUIL_DOUBLON_METRES);
+    if (proche && !confirm(`Un commerce de type "${typeCommerce}" existe déjà à moins de ${SEUIL_DOUBLON_METRES} m — enregistrer quand même ?`)) {
+      return;
+    }
+
     const objet = {
-      ...existant,
+      uid: genererUid(),
       nom_commerce: nomCommerce,
       type_commerce: typeCommerce,
       etat,
       date_fermeture: dateFermeture,
       commentaire,
-      last_update: new Date().toISOString()
+      last_update: new Date().toISOString(),
+      lat: position[0],
+      lon: position[1]
     };
+
     await enregistrerCommerce(objet);
-    mettreAJourMarqueurCommerce(objet);
+    afficherMarqueurCommerce(objet);
     fermerFormulaireCommerce();
-    return;
+  } catch (erreur) {
+    console.error('Échec de l\'enregistrement du commerce :', erreur);
+    if (erreur && erreur.message === 'Code appareil manquant') {
+      alert('Code appareil manquant — merci de le ressaisir avant de continuer.');
+      demanderReidentificationAppareil();
+      return;
+    }
+    alert('Échec de l\'enregistrement — cette saisie n\'a PAS été sauvegardée. Réessayez.');
   }
-
-  const position = getDernierePosition();
-  if (!position) {
-    alert('Position GPS perdue, réessayez.');
-    return;
-  }
-
-  const existants = await listerCommerces();
-  const proche = objetProcheExiste(existants, typeCommerce, 'type_commerce', position, SEUIL_DOUBLON_METRES);
-  if (proche && !confirm(`Un commerce de type "${typeCommerce}" existe déjà à moins de ${SEUIL_DOUBLON_METRES} m — enregistrer quand même ?`)) {
-    return;
-  }
-
-  const objet = {
-    uid: genererUid(),
-    nom_commerce: nomCommerce,
-    type_commerce: typeCommerce,
-    etat,
-    date_fermeture: dateFermeture,
-    commentaire,
-    last_update: new Date().toISOString(),
-    lat: position[0],
-    lon: position[1]
-  };
-
-  await enregistrerCommerce(objet);
-  afficherMarqueurCommerce(objet);
-  fermerFormulaireCommerce();
 }
 
 async function supprimerCommerceEnEdition() {
   if (!uidEnEditionCommerce) return;
   if (!confirm('Supprimer définitivement ce commerce ?')) return;
 
-  await supprimerDeStore('commerce', uidEnEditionCommerce);
-  const marker = commerceMarkers[uidEnEditionCommerce];
-  if (marker) {
-    map.removeLayer(marker);
-    delete commerceMarkers[uidEnEditionCommerce];
+  try {
+    await supprimerDeStore('commerce', uidEnEditionCommerce);
+    const marker = commerceMarkers[uidEnEditionCommerce];
+    if (marker) {
+      map.removeLayer(marker);
+      delete commerceMarkers[uidEnEditionCommerce];
+    }
+    fermerFormulaireCommerce();
+  } catch (erreur) {
+    console.error('Échec de la suppression du commerce :', erreur);
+    alert('Échec de la suppression. Réessayez.');
   }
-  fermerFormulaireCommerce();
 }
 
 async function chargerCommercesExistants() {
-  const objets = await listerCommerces();
-  objets.forEach(afficherMarqueurCommerce);
+  try {
+    const objets = await listerCommerces();
+    objets.forEach(afficherMarqueurCommerce);
+  } catch (erreur) {
+    console.error('Échec du chargement des commerces existants :', erreur);
+    afficherBanniereErreur('Impossible de charger les commerces déjà enregistrés sur cet appareil — ne continuez pas la saisie sans vérifier ce problème.');
+  }
 }
 
 document.getElementById('bouton-ajouter-commerce').addEventListener('click', ouvrirFormulaireCommerce);

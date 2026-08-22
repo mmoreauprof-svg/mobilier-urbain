@@ -10,6 +10,11 @@
 <body>
   <div id="map"></div>
 
+  <div id="banniere-erreur" class="banniere-erreur" hidden>
+    <span id="banniere-erreur-texte"></span>
+    <button id="banniere-erreur-fermer" aria-label="Fermer">×</button>
+  </div>
+
   <div id="code-appareil-label" hidden></div>
 
   <div id="modal-code-appareil" class="modal-overlay" hidden>
@@ -106,11 +111,12 @@
   </div>
 
   <script src="lib/leaflet/leaflet.js"></script>
+  <script src="js/util.js"></script>
   <script src="js/map.js"></script>
   <script src="js/position.js"></script>
   <script src="js/device.js"></script>
   <script src="js/geo.js"></script>
-  <script src="js/util.js"></script>
+  <script src="js/icones.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/mobilier.js"></script>
   <script src="js/commerce.js"></script>

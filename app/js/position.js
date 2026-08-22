@@ -3,6 +3,7 @@
 let positionMarker = null;
 let positionCentree = false;
 let dernierePosition = null;
+let alerteGpsAffichee = false;
 
 function getDernierePosition() {
   return dernierePosition;
@@ -11,6 +12,7 @@ function getDernierePosition() {
 function onPositionRecue(position) {
   const latlng = [position.coords.latitude, position.coords.longitude];
   dernierePosition = latlng;
+  alerteGpsAffichee = false;
 
   if (!positionMarker) {
     positionMarker = L.circleMarker(latlng, {
@@ -34,13 +36,22 @@ function onPositionRecue(position) {
 
 function onPositionErreur(erreur) {
   console.warn('Géolocalisation indisponible :', erreur.message);
+  // On ne montre la bannière qu'une fois (jusqu'au prochain fix réussi) pour
+  // ne pas spammer l'utilisateur : watchPosition réessaie en continu et
+  // rappellerait cette fonction à chaque échec sinon.
+  if (!alerteGpsAffichee) {
+    alerteGpsAffichee = true;
+    afficherBanniereErreur('Position GPS indisponible — vérifiez que la géolocalisation est autorisée pour ce site.');
+  }
 }
 
 if ('geolocation' in navigator) {
   navigator.geolocation.watchPosition(onPositionRecue, onPositionErreur, {
     enableHighAccuracy: true,
-    maximumAge: 5000
+    maximumAge: 5000,
+    timeout: 15000
   });
 } else {
   console.warn('Géolocalisation non supportée par ce navigateur.');
+  afficherBanniereErreur('Géolocalisation non supportée par ce navigateur.');
 }

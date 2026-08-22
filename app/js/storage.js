@@ -1,6 +1,8 @@
 // Stockage local permanent, IndexedDB (§3, §6.5 des spécifications)
 
-const DB_NOM = 'MobilierUrbainDB';
+// DB_NOM_OVERRIDE (non défini dans l'app normale) permet à test.html d'isoler
+// sa propre base IndexedDB, sans jamais toucher aux données réelles.
+const DB_NOM = (typeof DB_NOM_OVERRIDE !== 'undefined') ? DB_NOM_OVERRIDE : 'MobilierUrbainDB';
 const DB_VERSION = 1;
 
 function ouvrirBaseDeDonnees() {

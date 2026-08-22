@@ -2,18 +2,124 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <title>Tests automatisés — logique pure</title>
+  <title>Tests automatisés</title>
   <style>
     body { font-family: monospace; padding: 16px; white-space: pre-wrap; }
+    #harnais { position: absolute; left: -9999px; top: -9999px; width: 1px; height: 1px; overflow: hidden; }
   </style>
 </head>
 <body>
-  <h1>Tests automatisés — logique pure</h1>
+  <h1>Tests automatisés</h1>
   <div id="resultats">Exécution en cours…</div>
 
-  <script src="../js/geo.js"></script>
-  <script src="../js/device.js"></script>
+  <!-- Harnais DOM : reproduit la structure minimale d'index.html, hors écran,
+       pour pouvoir charger l'app réelle (map.js, mobilier.js, commerce.js...)
+       et rejouer ses parcours (y compris les échecs simulés) sans rien afficher. -->
+  <div id="harnais">
+    <div id="map"></div>
+
+    <div id="banniere-erreur" hidden>
+      <span id="banniere-erreur-texte"></span>
+      <button id="banniere-erreur-fermer">×</button>
+    </div>
+
+    <div id="code-appareil-label" hidden></div>
+
+    <div id="modal-code-appareil" hidden>
+      <input type="text" id="input-code-appareil" maxlength="4">
+      <p id="erreur-code-appareil" hidden></p>
+      <button id="bouton-valider-code-appareil">Valider</button>
+    </div>
+
+    <button id="bouton-ajouter-mobilier"></button>
+    <button id="bouton-ajouter-commerce"></button>
+
+    <div id="modal-mobilier-urbain" hidden>
+      <h2 id="titre-modal-mobilier"></h2>
+      <form id="form-mobilier-urbain">
+        <select id="mobilier-type">
+          <option>Banc</option>
+          <option>Corbeille</option>
+          <option>Distributeur de sacs</option>
+          <option>Arrêt de bus</option>
+          <option>Abri bus</option>
+        </select>
+        <select id="mobilier-etat">
+          <option>Bon</option>
+          <option>Moyen</option>
+          <option>Mauvais</option>
+          <option>HS</option>
+        </select>
+        <input type="number" id="mobilier-nombre" value="1" min="1">
+        <textarea id="mobilier-commentaire"></textarea>
+        <button type="button" id="bouton-supprimer-mobilier" hidden>Supprimer</button>
+        <button type="button" id="bouton-annuler-mobilier">Annuler</button>
+        <button type="button" id="bouton-enregistrer-mobilier">Enregistrer</button>
+      </form>
+    </div>
+
+    <div id="modal-commerce" hidden>
+      <h2 id="titre-modal-commerce"></h2>
+      <form id="form-commerce">
+        <input type="text" id="commerce-nom">
+        <select id="commerce-type">
+          <option>Supérette</option>
+          <option>Coiffeur</option>
+          <option>Banque</option>
+          <option>Vêtements</option>
+          <option>Boulangerie</option>
+          <option>Restaurant</option>
+          <option>Onglerie</option>
+          <option>Opticien</option>
+          <option>Autre commerce</option>
+          <option>Autre service</option>
+        </select>
+        <select id="commerce-etat">
+          <option>Vacant</option>
+          <option>Occupé</option>
+        </select>
+        <input type="month" id="commerce-date-fermeture">
+        <textarea id="commerce-commentaire"></textarea>
+        <button type="button" id="bouton-supprimer-commerce" hidden>Supprimer</button>
+        <button type="button" id="bouton-annuler-commerce">Annuler</button>
+        <button type="button" id="bouton-enregistrer-commerce">Enregistrer</button>
+      </form>
+    </div>
+  </div>
+
   <script>
+    // Isolation des tests : bases IndexedDB / clés localStorage distinctes de
+    // l'app réelle, pour ne jamais risquer de corrompre des données de terrain.
+    const DB_NOM_OVERRIDE = 'MobilierUrbainDB_TEST';
+    const CLE_CODE_APPAREIL_OVERRIDE = 'mobilierUrbain_codeAppareil_TEST';
+    const CLE_COMPTEUR_LOCAL_OVERRIDE = 'mobilierUrbain_compteurLocal_TEST';
+  </script>
+
+  <script src="../lib/leaflet/leaflet.js"></script>
+
+  <script>
+    // Les fichiers de l'app sont chargés dynamiquement avec un paramètre
+    // anti-cache : sans ça, le navigateur peut rejouer une version mise en
+    // cache d'une session précédente, et les tests valideraient silencieusement
+    // un code obsolète au lieu du code réellement présent sur le disque.
+    function chargerScript(src) {
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = src;
+        script.onload = resolve;
+        script.onerror = () => reject(new Error('Échec de chargement : ' + src));
+        document.body.appendChild(script);
+      });
+    }
+
+    async function chargerFichiersApp() {
+      const antiCache = '?t=' + Date.now();
+      const fichiers = ['util.js', 'map.js', 'position.js', 'device.js', 'geo.js', 'icones.js', 'storage.js', 'mobilier.js', 'commerce.js'];
+      for (const fichier of fichiers) {
+        await chargerScript('../js/' + fichier + antiCache);
+      }
+    }
+
     const resultats = [];
     let ok = 0;
     let total = 0;
@@ -28,50 +134,600 @@
       }
     }
 
-    // --- calculDistanceMetres (app/js/geo.js) ---
-    verifier(
-      'distance nulle entre deux points identiques',
-      calculDistanceMetres([48.8032, 2.1673], [48.8032, 2.1673]) < 0.01
-    );
-    verifier(
-      'distance ~111 km pour 1 degré de latitude',
-      Math.abs(calculDistanceMetres([0, 0], [1, 0]) - 111195) < 500
-    );
-    verifier(
-      'distance courte plausible pour un petit écart de coordonnées',
-      (() => {
-        const d = calculDistanceMetres([48.8032, 2.1673], [48.80321, 2.16731]);
-        return d > 0 && d < 20;
-      })()
-    );
+    async function verifierAsync(nom, fonctionAsync) {
+      try {
+        verifier(nom, await fonctionAsync());
+      } catch (e) {
+        verifier(nom, false);
+        resultats.push(`       -> exception inattendue : ${e.message}`);
+      }
+    }
 
-    // --- objetProcheExiste (app/js/geo.js) ---
-    const objetsTest = [
-      { type_objet: 'Banc', lat: 48.8032, lon: 2.1673 },
-      { type_objet: 'Corbeille', lat: 48.8100, lon: 2.1700 }
-    ];
-    verifier(
-      'doublon détecté : même type, même position',
-      objetProcheExiste(objetsTest, 'Banc', 'type_objet', [48.8032, 2.1673], 5) === true
-    );
-    verifier(
-      'pas de doublon : type différent au même endroit',
-      objetProcheExiste(objetsTest, 'Arrêt de bus', 'type_objet', [48.8032, 2.1673], 5) === false
-    );
-    verifier(
-      'pas de doublon : même type mais loin',
-      objetProcheExiste(objetsTest, 'Banc', 'type_objet', [48.9, 2.3], 5) === false
-    );
+    function attendre(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
 
-    // --- codeAppareilValide (app/js/device.js) ---
-    verifier('code valide 2 lettres', codeAppareilValide('MM') === true);
-    verifier('code valide 4 lettres', codeAppareilValide('IPHO') === true);
-    verifier('code invalide avec chiffre', codeAppareilValide('M1') === false);
-    verifier('code invalide vide', codeAppareilValide('') === false);
-    verifier('code invalide trop long', codeAppareilValide('TROPLONG') === false);
+    // Attend qu'une condition observable devienne vraie, au lieu d'attendre
+    // directement une promesse interne : permet de déclencher les actions via
+    // de vrais clics (dont le gestionnaire est asynchrone et n'est pas
+    // accessible depuis l'extérieur) tout en restant déterministe.
+    function attendreCondition(predicat, timeoutMs = 2000, intervalMs = 20) {
+      return new Promise((resolve, reject) => {
+        const debut = Date.now();
+        (function boucle() {
+          if (predicat()) return resolve();
+          if (Date.now() - debut > timeoutMs) return reject(new Error('attendreCondition : délai dépassé'));
+          setTimeout(boucle, intervalMs);
+        })();
+      });
+    }
 
-    document.getElementById('resultats').textContent =
-      resultats.join('\n') + `\n\n${ok}/${total} tests OK`;
+    // alert()/confirm() sont neutralisées pour que la suite tourne sans
+    // interaction humaine dans n'importe quel navigateur (pas seulement
+    // l'outil de Claude, qui les neutralise déjà de son côté). confirmReponse
+    // est modifiable par chaque test pour simuler acceptation ou refus.
+    const alertesCapturees = [];
+    let confirmReponse = true;
+    const confirmMessages = [];
+    window.alert = (message) => { alertesCapturees.push(message); };
+    window.confirm = (message) => { confirmMessages.push(message); return confirmReponse; };
+    function derniereAlerte() {
+      return alertesCapturees[alertesCapturees.length - 1] || '';
+    }
+
+    function masquerBanniere() {
+      document.getElementById('banniere-erreur').hidden = true;
+    }
+    function banniereVisibleAvec(sousChaine) {
+      const banniere = document.getElementById('banniere-erreur');
+      const texte = document.getElementById('banniere-erreur-texte').textContent;
+      return banniere.hidden === false && texte.includes(sousChaine);
+    }
+
+    function remplirFormulaireMobilier({ type, etat = 'Bon', nombre = '1', commentaire = '' }) {
+      document.getElementById('mobilier-type').value = type;
+      document.getElementById('mobilier-etat').value = etat;
+      document.getElementById('mobilier-nombre').value = nombre;
+      document.getElementById('mobilier-commentaire').value = commentaire;
+    }
+
+    function remplirFormulaireCommerce({ nom = '', type, etat = 'Vacant', dateFermeture = '', commentaire = '' }) {
+      document.getElementById('commerce-nom').value = nom;
+      document.getElementById('commerce-type').value = type;
+      document.getElementById('commerce-etat').value = etat;
+      document.getElementById('commerce-date-fermeture').value = dateFermeture;
+      document.getElementById('commerce-commentaire').value = commentaire;
+    }
+
+    // Ouvre le popup Leaflet du marqueur et renvoie son bouton "Modifier /
+    // Supprimer" — exerce le vrai attribut onclick généré par
+    // construirePopupMobilier/Commerce, pas un raccourci vers la fonction.
+    function boutonPopup(marker) {
+      marker.openPopup();
+      return marker.getPopup().getElement().querySelector('button');
+    }
+
+    function executerTestsPurLogique() {
+      // --- calculDistanceMetres (app/js/geo.js) ---
+      verifier(
+        'distance nulle entre deux points identiques',
+        calculDistanceMetres([48.8032, 2.1673], [48.8032, 2.1673]) < 0.01
+      );
+      verifier(
+        'distance ~111 km pour 1 degré de latitude',
+        Math.abs(calculDistanceMetres([0, 0], [1, 0]) - 111195) < 500
+      );
+      verifier(
+        'distance courte plausible pour un petit écart de coordonnées',
+        (() => {
+          const d = calculDistanceMetres([48.8032, 2.1673], [48.80321, 2.16731]);
+          return d > 0 && d < 20;
+        })()
+      );
+
+      // --- objetProcheExiste (app/js/geo.js) ---
+      const objetsTest = [
+        { type_objet: 'Banc', lat: 48.8032, lon: 2.1673 },
+        { type_objet: 'Corbeille', lat: 48.8100, lon: 2.1700 }
+      ];
+      verifier(
+        'doublon détecté : même type, même position',
+        objetProcheExiste(objetsTest, 'Banc', 'type_objet', [48.8032, 2.1673], 5) === true
+      );
+      verifier(
+        'pas de doublon : type différent au même endroit',
+        objetProcheExiste(objetsTest, 'Arrêt de bus', 'type_objet', [48.8032, 2.1673], 5) === false
+      );
+      verifier(
+        'pas de doublon : même type mais loin',
+        objetProcheExiste(objetsTest, 'Banc', 'type_objet', [48.9, 2.3], 5) === false
+      );
+
+      // --- codeAppareilValide (app/js/device.js) ---
+      verifier('code valide 2 lettres', codeAppareilValide('MM') === true);
+      verifier('code valide 4 lettres', codeAppareilValide('IPHO') === true);
+      verifier('code invalide avec chiffre', codeAppareilValide('M1') === false);
+      verifier('code invalide vide', codeAppareilValide('') === false);
+      verifier('code invalide trop long', codeAppareilValide('TROPLONG') === false);
+
+      // --- genererUid (app/js/device.js) : garde-fou code appareil manquant ---
+      verifier(
+        'genererUid lève une erreur si le code appareil est manquant',
+        (() => {
+          localStorage.removeItem(CLE_CODE_APPAREIL);
+          try {
+            genererUid();
+            return false;
+          } catch (e) {
+            return e.message === 'Code appareil manquant';
+          }
+        })()
+      );
+      verifier(
+        'genererUid fonctionne à nouveau une fois le code réenregistré',
+        (() => {
+          setCodeAppareil('TST');
+          const uid = genererUid();
+          return /^TST-\d{3}$/.test(uid);
+        })()
+      );
+
+      // --- echapperHtml (app/js/util.js) : protection XSS de base ---
+      verifier(
+        'echapperHtml échappe les balises HTML',
+        echapperHtml('<img src=x onerror=alert(1)>') === '&lt;img src=x onerror=alert(1)&gt;'
+      );
+      verifier(
+        'echapperHtml échappe les esperluettes',
+        echapperHtml('Café & Cie') === 'Café &amp; Cie'
+      );
+      verifier(
+        'echapperHtml laisse le texte normal intact',
+        echapperHtml('Boulangerie Dupont') === 'Boulangerie Dupont'
+      );
+
+      // --- iconeMobilier / iconeCommerce (app/js/icones.js) ---
+      verifier(
+        'iconeMobilier renvoie le bon fichier SVG pour chaque type',
+        Object.entries({
+          'Banc': 'banc',
+          'Corbeille': 'corbeille',
+          'Distributeur de sacs': 'distributeur-sacs',
+          'Arrêt de bus': 'arret-bus',
+          'Abri bus': 'abri-bus'
+        }).every(([type, fichier]) => iconeMobilier(type).options.iconUrl === `icons/${fichier}.svg`)
+      );
+      verifier(
+        'iconeCommerce renvoie le bon fichier SVG selon l\'état',
+        iconeCommerce('Occupé').options.iconUrl === 'icons/commerce-occupe.svg'
+        && iconeCommerce('Vacant').options.iconUrl === 'icons/commerce-vacant.svg'
+      );
+    }
+
+    // === Parcours fonctionnels automatisés (2026-08-22, élargis 2026-08-22) ===
+    // Ces tests chargent l'app réelle dans le harnais DOM ci-dessus et pilotent
+    // les vrais boutons/popups (pas les fonctions internes directement, sauf
+    // mention contraire) pour couvrir à la fois le chemin nominal (création,
+    // édition, suppression, doublon) et les pannes identifiées lors de l'audit.
+
+    async function executerTestsFonctionnels() {
+      setCodeAppareil('TST');
+
+      // --- Identification appareil : erreur affichée, puis validation réussie ---
+      await verifierAsync('identification : code invalide affiche une erreur, code valide referme le modal', async () => {
+        localStorage.removeItem(CLE_CODE_APPAREIL);
+        demanderReidentificationAppareil();
+        document.getElementById('erreur-code-appareil').hidden = true;
+        document.getElementById('input-code-appareil').value = '1';
+        document.getElementById('bouton-valider-code-appareil').click();
+        const erreurAffichee = document.getElementById('erreur-code-appareil').hidden === false
+          && document.getElementById('modal-code-appareil').hidden === false;
+
+        document.getElementById('input-code-appareil').value = 'TST';
+        document.getElementById('bouton-valider-code-appareil').click();
+        const modalFerme = document.getElementById('modal-code-appareil').hidden === true
+          && getCodeAppareil() === 'TST';
+
+        return erreurAffichee && modalFerme;
+      });
+
+      // --- Protection XSS dans les popups (échappement du texte saisi) ---
+      await verifierAsync('mobilier : le popup échappe le commentaire saisi (protection XSS)', async () => {
+        const html = construirePopupMobilier({
+          uid: 'TST-XSS-1', type_objet: 'Banc', etat: 'Bon', nombre: 1,
+          commentaire: '<img src=x onerror=alert(1)>'
+        });
+        return !html.includes('<img') && html.includes('&lt;img');
+      });
+      await verifierAsync('commerce : le popup échappe le nom et le commentaire saisis (protection XSS)', async () => {
+        const html = construirePopupCommerce({
+          uid: 'TST-XSS-2', nom_commerce: '<' + 'script>alert(1)</' + 'script>', type_commerce: 'Banque',
+          etat: 'Vacant', date_fermeture: '', commentaire: '"><svg onload=alert(1)>'
+        });
+        return !html.includes('<script') && !html.includes('<svg') && html.includes('&lt;script');
+      });
+
+      onPositionRecue({ coords: { latitude: 48.80, longitude: 2.16 } });
+
+      // --- Mobilier urbain : création nominale via l'interface ---
+      await verifierAsync('mobilier : création via l\'interface enregistre les bons champs et affiche le marqueur', async () => {
+        onPositionRecue({ coords: { latitude: 40, longitude: 40 } });
+        document.getElementById('bouton-ajouter-mobilier').click();
+        const formulaireOuvert = document.getElementById('modal-mobilier-urbain').hidden === false;
+        remplirFormulaireMobilier({ type: 'Banc', etat: 'Moyen', nombre: '3', commentaire: 'Test création' });
+        document.getElementById('bouton-enregistrer-mobilier').click();
+        await attendreCondition(() => document.getElementById('modal-mobilier-urbain').hidden === true);
+
+        const objet = (await listerMobilierUrbain()).find((o) => o.lat === 40 && o.lon === 40);
+        return formulaireOuvert && !!objet
+          && objet.type_objet === 'Banc' && objet.etat === 'Moyen' && objet.nombre === 3
+          && objet.commentaire === 'Test création' && /^TST-\d{3}$/.test(objet.uid)
+          && !!mobilierMarkers[objet.uid];
+      });
+
+      // --- Mobilier urbain : édition nominale via le popup réel ---
+      await verifierAsync('mobilier : édition via le popup met à jour l\'objet et le formulaire pré-rempli', async () => {
+        const objet = { uid: 'TST-EDIT-1', type_objet: 'Corbeille', etat: 'Bon', nombre: 1, commentaire: '', last_update: '2020-01-01T00:00:00.000Z', lat: 41, lon: 41 };
+        await enregistrerMobilierUrbain(objet);
+        afficherMarqueurMobilier(objet);
+
+        boutonPopup(mobilierMarkers['TST-EDIT-1']).click();
+        // ouvrirEditionMobilier() est asynchrone (elle relit la base avant de
+        // remplir le formulaire) : sans cette attente, la vérification ci-
+        // dessous s'exécuterait avant que le clic ait produit son effet.
+        await attendreCondition(() => document.getElementById('modal-mobilier-urbain').hidden === false);
+        const formulaireOuvert = document.getElementById('mobilier-type').value === 'Corbeille';
+
+        document.getElementById('mobilier-etat').value = 'HS';
+        document.getElementById('mobilier-commentaire').value = 'Modifié par le test';
+        document.getElementById('bouton-enregistrer-mobilier').click();
+        await attendreCondition(() => document.getElementById('modal-mobilier-urbain').hidden === true);
+
+        const maj = (await listerMobilierUrbain()).find((o) => o.uid === 'TST-EDIT-1');
+        return formulaireOuvert && maj.etat === 'HS' && maj.commentaire === 'Modifié par le test'
+          && maj.last_update !== objet.last_update;
+      });
+
+      // --- Mobilier urbain : suppression nominale via le popup réel ---
+      await verifierAsync('mobilier : suppression via le popup retire l\'objet et le marqueur', async () => {
+        const objet = { uid: 'TST-DEL-1', type_objet: 'Arrêt de bus', etat: 'Bon', nombre: 1, commentaire: '', last_update: new Date().toISOString(), lat: 42, lon: 42 };
+        await enregistrerMobilierUrbain(objet);
+        afficherMarqueurMobilier(objet);
+
+        boutonPopup(mobilierMarkers['TST-DEL-1']).click();
+        await attendreCondition(() => document.getElementById('modal-mobilier-urbain').hidden === false);
+        document.getElementById('bouton-supprimer-mobilier').click();
+        await attendreCondition(() => document.getElementById('modal-mobilier-urbain').hidden === true);
+
+        const objets = await listerMobilierUrbain();
+        return !objets.some((o) => o.uid === 'TST-DEL-1') && !mobilierMarkers['TST-DEL-1'];
+      });
+
+      // --- Mobilier urbain : doublon refusé puis accepté ---
+      await verifierAsync('mobilier : doublon → refus n\'enregistre rien, acceptation enregistre un second objet', async () => {
+        onPositionRecue({ coords: { latitude: 43, longitude: 43 } });
+        await enregistrerMobilierUrbain({ uid: 'TST-DUP-1', type_objet: 'Abri bus', etat: 'Bon', nombre: 1, commentaire: '', last_update: new Date().toISOString(), lat: 43, lon: 43 });
+
+        document.getElementById('bouton-ajouter-mobilier').click();
+        remplirFormulaireMobilier({ type: 'Abri bus' });
+        confirmMessages.length = 0;
+        confirmReponse = false;
+        document.getElementById('bouton-enregistrer-mobilier').click();
+        await attendreCondition(() => confirmMessages.length > 0);
+        await attendre(30);
+        const apresRefus = (await listerMobilierUrbain()).filter((o) => o.lat === 43 && o.lon === 43).length;
+        document.getElementById('modal-mobilier-urbain').hidden = true;
+
+        confirmReponse = true;
+        document.getElementById('bouton-ajouter-mobilier').click();
+        remplirFormulaireMobilier({ type: 'Abri bus' });
+        document.getElementById('bouton-enregistrer-mobilier').click();
+        await attendreCondition(() => document.getElementById('modal-mobilier-urbain').hidden === true);
+        const apresAcceptation = (await listerMobilierUrbain()).filter((o) => o.lat === 43 && o.lon === 43).length;
+
+        return apresRefus === 1 && apresAcceptation === 2 && confirmMessages[0].includes('existe déjà');
+      });
+
+      // --- Mobilier urbain : échec d'écriture IndexedDB ---
+      await verifierAsync('mobilier : échec IndexedDB via clic réel → alerte visible, rien de sauvegardé', async () => {
+        onPositionRecue({ coords: { latitude: 44, longitude: 44 } });
+        document.getElementById('bouton-ajouter-mobilier').click();
+        remplirFormulaireMobilier({ type: 'Distributeur de sacs' });
+        const avant = (await listerMobilierUrbain()).length;
+
+        const original = window.enregistrerMobilierUrbain;
+        window.enregistrerMobilierUrbain = () => Promise.reject(new Error('DB indisponible (test)'));
+        alertesCapturees.length = 0;
+        document.getElementById('bouton-enregistrer-mobilier').click();
+        try {
+          await attendreCondition(() => alertesCapturees.length > 0);
+        } finally {
+          window.enregistrerMobilierUrbain = original;
+        }
+        const apres = (await listerMobilierUrbain()).length;
+
+        const resultat = derniereAlerte().includes('PAS été sauvegardée')
+          && document.getElementById('modal-mobilier-urbain').hidden === false
+          && apres === avant;
+        document.getElementById('modal-mobilier-urbain').hidden = true;
+        return resultat;
+      });
+
+      // --- Mobilier urbain : édition d'un objet supprimé entre-temps ---
+      await verifierAsync('mobilier : édition d\'un objet supprimé entre-temps ne le recrée pas', async () => {
+        const objetTest = { uid: 'TST-900', type_objet: 'Banc', etat: 'Bon', nombre: 1, commentaire: '', last_update: new Date().toISOString(), lat: 46, lon: 46 };
+        await enregistrerMobilierUrbain(objetTest);
+        await ouvrirEditionMobilier('TST-900');
+        await supprimerDeStore('mobilier_urbain', 'TST-900');
+
+        alertesCapturees.length = 0;
+        document.getElementById('bouton-enregistrer-mobilier').click();
+        await attendreCondition(() => alertesCapturees.length > 0);
+
+        const objets = await listerMobilierUrbain();
+        return derniereAlerte().includes('supprimé entre-temps')
+          && document.getElementById('modal-mobilier-urbain').hidden === true
+          && !objets.some((o) => o.uid === 'TST-900');
+      });
+
+      // --- Mobilier urbain : code appareil manquant ---
+      await verifierAsync('mobilier : code appareil manquant via clic réel → réidentification demandée, rien de sauvegardé', async () => {
+        onPositionRecue({ coords: { latitude: 45, longitude: 45 } });
+        document.getElementById('bouton-ajouter-mobilier').click();
+        remplirFormulaireMobilier({ type: 'Arrêt de bus' });
+        localStorage.removeItem(CLE_CODE_APPAREIL);
+        document.getElementById('modal-code-appareil').hidden = true;
+        const avant = (await listerMobilierUrbain()).length;
+        alertesCapturees.length = 0;
+
+        document.getElementById('bouton-enregistrer-mobilier').click();
+        await attendreCondition(() => alertesCapturees.length > 0);
+        const apres = (await listerMobilierUrbain()).length;
+
+        const resultat = derniereAlerte().includes('Code appareil manquant')
+          && document.getElementById('modal-code-appareil').hidden === false
+          && apres === avant;
+
+        setCodeAppareil('TST');
+        document.getElementById('modal-code-appareil').hidden = true;
+        document.getElementById('modal-mobilier-urbain').hidden = true;
+        return resultat;
+      });
+
+      // --- Commerce : création nominale via l'interface ---
+      await verifierAsync('commerce : création via l\'interface enregistre les bons champs et affiche le marqueur', async () => {
+        onPositionRecue({ coords: { latitude: 50, longitude: 50 } });
+        document.getElementById('bouton-ajouter-commerce').click();
+        const formulaireOuvert = document.getElementById('modal-commerce').hidden === false;
+        remplirFormulaireCommerce({ nom: 'Boulangerie Test', type: 'Boulangerie', etat: 'Occupé', commentaire: 'Test création' });
+        document.getElementById('bouton-enregistrer-commerce').click();
+        await attendreCondition(() => document.getElementById('modal-commerce').hidden === true);
+
+        const objet = (await listerCommerces()).find((o) => o.lat === 50 && o.lon === 50);
+        return formulaireOuvert && !!objet
+          && objet.nom_commerce === 'Boulangerie Test' && objet.type_commerce === 'Boulangerie'
+          && objet.etat === 'Occupé' && objet.commentaire === 'Test création'
+          && /^TST-\d{3}$/.test(objet.uid) && !!commerceMarkers[objet.uid];
+      });
+
+      // --- Commerce : édition nominale via le popup réel ---
+      await verifierAsync('commerce : édition via le popup met à jour l\'objet et le formulaire pré-rempli', async () => {
+        const objet = { uid: 'TST-EDIT-2', nom_commerce: 'Ancien nom', type_commerce: 'Coiffeur', etat: 'Occupé', date_fermeture: '', commentaire: '', last_update: '2020-01-01T00:00:00.000Z', lat: 51, lon: 51 };
+        await enregistrerCommerce(objet);
+        afficherMarqueurCommerce(objet);
+
+        boutonPopup(commerceMarkers['TST-EDIT-2']).click();
+        await attendreCondition(() => document.getElementById('modal-commerce').hidden === false);
+        const formulaireOuvert = document.getElementById('commerce-nom').value === 'Ancien nom';
+
+        document.getElementById('commerce-etat').value = 'Vacant';
+        document.getElementById('commerce-date-fermeture').value = '2026-07';
+        document.getElementById('bouton-enregistrer-commerce').click();
+        await attendreCondition(() => document.getElementById('modal-commerce').hidden === true);
+
+        const maj = (await listerCommerces()).find((o) => o.uid === 'TST-EDIT-2');
+        return formulaireOuvert && maj.etat === 'Vacant' && maj.date_fermeture === '2026-07'
+          && maj.last_update !== objet.last_update;
+      });
+
+      // --- Commerce : suppression nominale via le popup réel ---
+      await verifierAsync('commerce : suppression via le popup retire l\'objet et le marqueur', async () => {
+        const objet = { uid: 'TST-DEL-2', nom_commerce: '', type_commerce: 'Opticien', etat: 'Vacant', date_fermeture: '', commentaire: '', last_update: new Date().toISOString(), lat: 52, lon: 52 };
+        await enregistrerCommerce(objet);
+        afficherMarqueurCommerce(objet);
+
+        boutonPopup(commerceMarkers['TST-DEL-2']).click();
+        await attendreCondition(() => document.getElementById('modal-commerce').hidden === false);
+        document.getElementById('bouton-supprimer-commerce').click();
+        await attendreCondition(() => document.getElementById('modal-commerce').hidden === true);
+
+        const objets = await listerCommerces();
+        return !objets.some((o) => o.uid === 'TST-DEL-2') && !commerceMarkers['TST-DEL-2'];
+      });
+
+      // --- Commerce : doublon refusé puis accepté ---
+      await verifierAsync('commerce : doublon → refus n\'enregistre rien, acceptation enregistre un second objet', async () => {
+        onPositionRecue({ coords: { latitude: 53, longitude: 53 } });
+        await enregistrerCommerce({ uid: 'TST-DUP-2', nom_commerce: '', type_commerce: 'Restaurant', etat: 'Vacant', date_fermeture: '', commentaire: '', last_update: new Date().toISOString(), lat: 53, lon: 53 });
+
+        document.getElementById('bouton-ajouter-commerce').click();
+        remplirFormulaireCommerce({ type: 'Restaurant' });
+        confirmMessages.length = 0;
+        confirmReponse = false;
+        document.getElementById('bouton-enregistrer-commerce').click();
+        await attendreCondition(() => confirmMessages.length > 0);
+        await attendre(30);
+        const apresRefus = (await listerCommerces()).filter((o) => o.lat === 53 && o.lon === 53).length;
+        document.getElementById('modal-commerce').hidden = true;
+
+        confirmReponse = true;
+        document.getElementById('bouton-ajouter-commerce').click();
+        remplirFormulaireCommerce({ type: 'Restaurant' });
+        document.getElementById('bouton-enregistrer-commerce').click();
+        await attendreCondition(() => document.getElementById('modal-commerce').hidden === true);
+        const apresAcceptation = (await listerCommerces()).filter((o) => o.lat === 53 && o.lon === 53).length;
+
+        return apresRefus === 1 && apresAcceptation === 2 && confirmMessages[0].includes('existe déjà');
+      });
+
+      // --- Commerce : échec d'écriture IndexedDB ---
+      await verifierAsync('commerce : échec IndexedDB via clic réel → alerte visible, rien de sauvegardé', async () => {
+        onPositionRecue({ coords: { latitude: 54, longitude: 54 } });
+        document.getElementById('bouton-ajouter-commerce').click();
+        remplirFormulaireCommerce({ type: 'Onglerie' });
+        const avant = (await listerCommerces()).length;
+
+        const original = window.enregistrerCommerce;
+        window.enregistrerCommerce = () => Promise.reject(new Error('DB indisponible (test)'));
+        alertesCapturees.length = 0;
+        document.getElementById('bouton-enregistrer-commerce').click();
+        try {
+          await attendreCondition(() => alertesCapturees.length > 0);
+        } finally {
+          window.enregistrerCommerce = original;
+        }
+        const apres = (await listerCommerces()).length;
+
+        const resultat = derniereAlerte().includes('PAS été sauvegardée')
+          && document.getElementById('modal-commerce').hidden === false
+          && apres === avant;
+        document.getElementById('modal-commerce').hidden = true;
+        return resultat;
+      });
+
+      // --- Commerce : édition d'un objet supprimé entre-temps ---
+      await verifierAsync('commerce : édition d\'un objet supprimé entre-temps ne le recrée pas', async () => {
+        const objetTest = { uid: 'TST-901', nom_commerce: '', type_commerce: 'Banque', etat: 'Vacant', date_fermeture: '', commentaire: '', last_update: new Date().toISOString(), lat: 47, lon: 47 };
+        await enregistrerCommerce(objetTest);
+        await ouvrirEditionCommerce('TST-901');
+        await supprimerDeStore('commerce', 'TST-901');
+
+        alertesCapturees.length = 0;
+        document.getElementById('bouton-enregistrer-commerce').click();
+        await attendreCondition(() => alertesCapturees.length > 0);
+
+        const objets = await listerCommerces();
+        return derniereAlerte().includes('supprimé entre-temps')
+          && document.getElementById('modal-commerce').hidden === true
+          && !objets.some((o) => o.uid === 'TST-901');
+      });
+
+      // --- Commerce : code appareil manquant ---
+      await verifierAsync('commerce : code appareil manquant via clic réel → réidentification demandée, rien de sauvegardé', async () => {
+        onPositionRecue({ coords: { latitude: 55, longitude: 55 } });
+        document.getElementById('bouton-ajouter-commerce').click();
+        remplirFormulaireCommerce({ type: 'Vêtements' });
+        localStorage.removeItem(CLE_CODE_APPAREIL);
+        document.getElementById('modal-code-appareil').hidden = true;
+        const avant = (await listerCommerces()).length;
+        alertesCapturees.length = 0;
+
+        document.getElementById('bouton-enregistrer-commerce').click();
+        await attendreCondition(() => alertesCapturees.length > 0);
+        const apres = (await listerCommerces()).length;
+
+        const resultat = derniereAlerte().includes('Code appareil manquant')
+          && document.getElementById('modal-code-appareil').hidden === false
+          && apres === avant;
+
+        setCodeAppareil('TST');
+        document.getElementById('modal-code-appareil').hidden = true;
+        document.getElementById('modal-commerce').hidden = true;
+        return resultat;
+      });
+
+      // --- Échec de chargement au démarrage : mobilier urbain ---
+      await verifierAsync('mobilier : échec de chargement initial affiche la bannière (pas confondu avec "base vide")', async () => {
+        masquerBanniere();
+        const original = window.listerMobilierUrbain;
+        window.listerMobilierUrbain = () => Promise.reject(new Error('DB indisponible (test)'));
+        await chargerMobilierExistant();
+        window.listerMobilierUrbain = original;
+        const resultat = banniereVisibleAvec('mobiliers urbains déjà enregistrés');
+        masquerBanniere();
+        return resultat;
+      });
+
+      // --- Échec de chargement au démarrage : commerce ---
+      await verifierAsync('commerce : échec de chargement initial affiche la bannière (pas confondu avec "base vide")', async () => {
+        masquerBanniere();
+        const original = window.listerCommerces;
+        window.listerCommerces = () => Promise.reject(new Error('DB indisponible (test)'));
+        await chargerCommercesExistants();
+        window.listerCommerces = original;
+        const resultat = banniereVisibleAvec('commerces déjà enregistrés');
+        masquerBanniere();
+        return resultat;
+      });
+
+      // --- Réseau instable : échec de chargement des tuiles ---
+      await verifierAsync('carte : échec réseau des tuiles affiche la bannière', async () => {
+        masquerBanniere();
+        coucheTuiles.fire('tileerror');
+        const resultat = banniereVisibleAvec('réseau instable');
+        masquerBanniere();
+        return resultat;
+      });
+
+      // --- Géolocalisation : bannière affichée une seule fois, réarmée après un fix ---
+      await verifierAsync('position : bannière GPS affichée une fois, réarmée après le fix suivant', async () => {
+        masquerBanniere();
+        onPositionErreur({ code: 2, message: 'test' });
+        const premierAffichage = banniereVisibleAvec('Position GPS indisponible');
+
+        masquerBanniere();
+        onPositionErreur({ code: 2, message: 'test' });
+        const pasDeRepetition = document.getElementById('banniere-erreur').hidden === true;
+
+        onPositionRecue({ coords: { latitude: 48.80, longitude: 2.16 } });
+        masquerBanniere();
+        onPositionErreur({ code: 2, message: 'test' });
+        const reaffichageApresNouvelEchec = banniereVisibleAvec('Position GPS indisponible');
+
+        masquerBanniere();
+        return premierAffichage && pasDeRepetition && reaffichageApresNouvelEchec;
+      });
+
+      // --- Filet global : erreur asynchrone non interceptée ailleurs ---
+      await verifierAsync('filet global : une rejection non interceptée affiche la bannière', async () => {
+        masquerBanniere();
+        Promise.reject(new Error('Erreur de test volontaire (filet global)'));
+        await attendre(100);
+        const resultat = banniereVisibleAvec('inattendue');
+        masquerBanniere();
+        return resultat;
+      });
+    }
+
+    async function main() {
+      try {
+        await chargerFichiersApp();
+        executerTestsPurLogique();
+        await executerTestsFonctionnels();
+      } finally {
+        // Nettoyage : la connexion doit être fermée AVANT de supprimer la
+        // base, sinon la suppression reste bloquée en silence (onblocked)
+        // et laisse une base corrompue (sans object stores) pour la
+        // prochaine exécution.
+        try {
+          const db = await basePromise;
+          db.close();
+        } catch (e) { /* rien à fermer si l'ouverture avait échoué */ }
+        await new Promise((resolve) => {
+          const requete = indexedDB.deleteDatabase(DB_NOM_OVERRIDE);
+          requete.onsuccess = resolve;
+          requete.onerror = resolve;
+          requete.onblocked = resolve;
+        });
+        localStorage.removeItem(CLE_CODE_APPAREIL_OVERRIDE);
+        localStorage.removeItem(CLE_COMPTEUR_LOCAL_OVERRIDE);
+
+        document.getElementById('resultats').textContent =
+          resultats.join('\n') + `\n\n${ok}/${total} tests OK`;
+      }
+    }
+
+    main();
   </script>
 </body>
 </html>

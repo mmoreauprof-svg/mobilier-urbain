@@ -55,6 +55,10 @@ Aujourd'hui, double-cliquer sur `app/index.html` ouvre la carte directement dans
 
 ⚠️ **Cette méthode cessera de fonctionner correctement dès que l'application utilisera le stockage local (IndexedDB, prévu à l'étape 4)** : les navigateurs bloquent ce stockage pour les pages ouvertes en double-clic (protocole `file://`). À partir de ce moment, **toujours utiliser la méthode par serveur local** ci-dessus pour les tests.
 
+### Bannière d'erreur rouge (en haut de l'écran)
+
+Depuis le 2026-08-22, une bannière rouge fixe en haut de l'écran s'affiche pour tout problème qui pourrait autrement passer inaperçu (position GPS indisponible, chargement des données échoué, réseau instable pour le fond de carte, erreur inattendue). Elle se ferme avec le bouton `×` mais reste jusqu'à fermeture manuelle. Si elle apparaît de façon inattendue en usage normal, c'est le signal qu'il faut vérifier ce qui a échoué avant de continuer la saisie.
+
 ## Android
 
 *(à compléter ensemble)*
