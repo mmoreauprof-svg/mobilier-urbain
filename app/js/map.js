@@ -17,3 +17,35 @@ coucheTuiles.on('tileerror', () => {
   alerteTuilesAffichee = true;
   afficherBanniereErreur('Connexion réseau instable — le fond de carte peut être incomplet.');
 });
+
+// Sélection manuelle d'un point sur la carte (§6.4bis) : repli utilisé quand
+// aucune position GPS récente n'est disponible (PC sans GPS, ou signal perdu).
+let annulerSelectionCarteEnCours = null;
+
+function demanderPositionSurCarte(callback) {
+  if (annulerSelectionCarteEnCours) {
+    annulerSelectionCarteEnCours();
+  }
+
+  const conteneurCarte = document.getElementById('map');
+  const banniere = document.getElementById('banniere-selection');
+  conteneurCarte.classList.add('curseur-selection');
+  banniere.hidden = false;
+
+  function nettoyer() {
+    map.off('click', surClicCarte);
+    conteneurCarte.classList.remove('curseur-selection');
+    banniere.hidden = true;
+    banniere.onclick = null;
+    annulerSelectionCarteEnCours = null;
+  }
+
+  function surClicCarte(evenement) {
+    nettoyer();
+    callback([evenement.latlng.lat, evenement.latlng.lng]);
+  }
+
+  banniere.onclick = nettoyer;
+  annulerSelectionCarteEnCours = nettoyer;
+  map.on('click', surClicCarte);
+}

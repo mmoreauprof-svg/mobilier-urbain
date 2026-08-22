@@ -75,3 +75,20 @@ Une analyse critique de la suite (composants couverts, complétude, couplage aux
 Le monkey-patching des fonctions `enregistrerMobilierUrbain`/`enregistrerCommerce`/`listerMobilierUrbain`/`listerCommerces` (pour simuler un échec IndexedDB) reste une forme de couplage à l'implémentation (ces fonctions doivent rester globales, sous ce nom) — accepté comme compromis : c'est la petite API publique déjà volontairement exposée par `storage.js`, comparable à mocker une couche d'accès aux données dans un test classique.
 
 **Suite complète : 40/40 tests OK** (18 logique pure + 22 parcours fonctionnels), rejouée deux fois de suite pour confirmer la reproductibilité.
+
+## Étape 4, point 8 — Sélection manuelle d'un point sur la carte (2026-08-22)
+
+6 nouveaux tests fonctionnels couvrant le repli spécifié en §6.4bis, au même niveau d'exigence que le reste de la suite (chemin nominal, annulation, remplacement, non-régression — cf. critères de la revue de couverture ci-dessus) :
+
+- Absence de GPS → clic sur "+ Mobilier urbain"/"+ Commerce" affiche la bannière de sélection (curseur en croix, formulaire non ouvert).
+- Un clic sur la carte (`map.fire('click', ...)`, pas un appel direct à `demanderPositionSurCarte`) ouvre le formulaire avec les coordonnées choisies et les enregistre correctement à la sauvegarde.
+- Un clic sur la bannière annule la sélection en cours.
+- Démarrer une nouvelle sélection annule silencieusement une précédente restée en attente (mobilier → commerce).
+- Annuler le formulaire après une sélection manuelle réinitialise l'état, permettant une nouvelle sélection propre ensuite (pas de coordonnées "collées" d'une tentative précédente).
+- Avec GPS disponible, le comportement d'origine (formulaire immédiat, pas de bannière) reste inchangé.
+
+**Écart assumé par rapport à la rigueur habituelle** : contrairement aux autres parcours, l'échec IndexedDB n'est pas re-testé spécifiquement pour la position sélectionnée manuellement — au-delà du calcul de la position, `enregistrerMobilierDepuisFormulaire`/`enregistrerCommerceDepuisFormulaire` empruntent exactement le même code que pour une position GPS (déjà couvert), donc un test dédié n'aurait rien vérifié de plus.
+
+**Compromis de test** : `dernierePosition` (variable interne de `position.js`) est remise à `null` directement dans les tests pour simuler "pas encore de position GPS" — il n'existe pas de déclencheur UI pour ce cas. Comparable au monkey-patching déjà accepté plus haut pour simuler un échec IndexedDB.
+
+**Suite complète : 46/46 tests OK** (18 logique pure + 28 parcours fonctionnels), rejouée deux fois de suite.

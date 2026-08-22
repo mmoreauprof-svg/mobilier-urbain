@@ -2,6 +2,7 @@
 
 const mobilierMarkers = {};
 let uidEnEditionMobilier = null;
+let positionManuelleMobilier = null;
 
 function construirePopupMobilier(objet) {
   const commentaireHtml = objet.commentaire ? `<br>${echapperHtml(objet.commentaire)}` : '';
@@ -23,10 +24,17 @@ function mettreAJourMarqueurMobilier(objet) {
 }
 
 function ouvrirFormulaireMobilier() {
-  if (!getDernierePosition()) {
-    alert('Position GPS non disponible pour le moment. Réessayez dans quelques secondes.');
+  if (getDernierePosition()) {
+    ouvrirFormulaireMobilierNouveau(null);
     return;
   }
+  // Pas de position GPS récente (PC sans GPS, signal perdu) : repli sur la
+  // sélection manuelle d'un point sur la carte (§6.4bis des spécifications).
+  demanderPositionSurCarte((latlng) => ouvrirFormulaireMobilierNouveau(latlng));
+}
+
+function ouvrirFormulaireMobilierNouveau(positionManuelle) {
+  positionManuelleMobilier = positionManuelle;
   uidEnEditionMobilier = null;
   document.getElementById('titre-modal-mobilier').textContent = 'Nouveau mobilier urbain';
   document.getElementById('bouton-enregistrer-mobilier').textContent = 'Enregistrer';
@@ -38,6 +46,7 @@ function fermerFormulaireMobilier() {
   document.getElementById('modal-mobilier-urbain').hidden = true;
   document.getElementById('form-mobilier-urbain').reset();
   uidEnEditionMobilier = null;
+  positionManuelleMobilier = null;
 }
 
 async function ouvrirEditionMobilier(uid) {
@@ -88,9 +97,9 @@ async function enregistrerMobilierDepuisFormulaire() {
       return;
     }
 
-    const position = getDernierePosition();
+    const position = positionManuelleMobilier || getDernierePosition();
     if (!position) {
-      alert('Position GPS perdue, réessayez.');
+      alert('Position indisponible, réessayez.');
       return;
     }
 

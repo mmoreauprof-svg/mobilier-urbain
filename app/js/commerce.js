@@ -2,6 +2,7 @@
 
 const commerceMarkers = {};
 let uidEnEditionCommerce = null;
+let positionManuelleCommerce = null;
 
 function construirePopupCommerce(objet) {
   const nom = objet.nom_commerce ? echapperHtml(objet.nom_commerce) : '(local sans enseigne)';
@@ -25,10 +26,17 @@ function mettreAJourMarqueurCommerce(objet) {
 }
 
 function ouvrirFormulaireCommerce() {
-  if (!getDernierePosition()) {
-    alert('Position GPS non disponible pour le moment. Réessayez dans quelques secondes.');
+  if (getDernierePosition()) {
+    ouvrirFormulaireCommerceNouveau(null);
     return;
   }
+  // Pas de position GPS récente (PC sans GPS, signal perdu) : repli sur la
+  // sélection manuelle d'un point sur la carte (§6.4bis des spécifications).
+  demanderPositionSurCarte((latlng) => ouvrirFormulaireCommerceNouveau(latlng));
+}
+
+function ouvrirFormulaireCommerceNouveau(positionManuelle) {
+  positionManuelleCommerce = positionManuelle;
   uidEnEditionCommerce = null;
   document.getElementById('titre-modal-commerce').textContent = 'Nouveau commerce';
   document.getElementById('bouton-enregistrer-commerce').textContent = 'Enregistrer';
@@ -40,6 +48,7 @@ function fermerFormulaireCommerce() {
   document.getElementById('modal-commerce').hidden = true;
   document.getElementById('form-commerce').reset();
   uidEnEditionCommerce = null;
+  positionManuelleCommerce = null;
 }
 
 async function ouvrirEditionCommerce(uid) {
@@ -93,9 +102,9 @@ async function enregistrerCommerceDepuisFormulaire() {
       return;
     }
 
-    const position = getDernierePosition();
+    const position = positionManuelleCommerce || getDernierePosition();
     if (!position) {
-      alert('Position GPS perdue, réessayez.');
+      alert('Position indisponible, réessayez.');
       return;
     }
 

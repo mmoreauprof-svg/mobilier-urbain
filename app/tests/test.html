@@ -18,6 +18,8 @@
   <div id="harnais">
     <div id="map"></div>
 
+    <div id="banniere-selection" hidden></div>
+
     <div id="banniere-erreur" hidden>
       <span id="banniere-erreur-texte"></span>
       <button id="banniere-erreur-fermer">×</button>
@@ -633,6 +635,81 @@
         setCodeAppareil('TST');
         document.getElementById('modal-code-appareil').hidden = true;
         document.getElementById('modal-commerce').hidden = true;
+        return resultat;
+      });
+
+      // --- Sélection manuelle d'un point sur la carte (§6.4bis, sans GPS) ---
+      await verifierAsync('sélection carte : sans GPS, le clic sur "+ Mobilier urbain" affiche la bannière au lieu du formulaire', async () => {
+        dernierePosition = null;
+        document.getElementById('bouton-ajouter-mobilier').click();
+        const resultat = document.getElementById('banniere-selection').hidden === false
+          && document.getElementById('map').classList.contains('curseur-selection')
+          && document.getElementById('modal-mobilier-urbain').hidden === true;
+        document.getElementById('banniere-selection').click();
+        return resultat;
+      });
+
+      await verifierAsync('sélection carte : cliquer sur la carte ouvre le formulaire avec les coordonnées choisies et les enregistre', async () => {
+        dernierePosition = null;
+        document.getElementById('bouton-ajouter-mobilier').click();
+        map.fire('click', { latlng: L.latLng(48.81, 2.18) });
+        const formulaireOuvert = document.getElementById('modal-mobilier-urbain').hidden === false
+          && document.getElementById('banniere-selection').hidden === true
+          && positionManuelleMobilier[0] === 48.81 && positionManuelleMobilier[1] === 2.18;
+
+        remplirFormulaireMobilier({ type: 'Banc' });
+        document.getElementById('bouton-enregistrer-mobilier').click();
+        await attendreCondition(() => document.getElementById('modal-mobilier-urbain').hidden === true);
+        const objet = (await listerMobilierUrbain()).find((o) => o.lat === 48.81 && o.lon === 2.18);
+
+        return formulaireOuvert && !!objet && positionManuelleMobilier === null;
+      });
+
+      await verifierAsync('sélection carte : cliquer sur la bannière annule la sélection en cours', async () => {
+        dernierePosition = null;
+        document.getElementById('bouton-ajouter-commerce').click();
+        document.getElementById('banniere-selection').click();
+        return document.getElementById('banniere-selection').hidden === true
+          && !document.getElementById('map').classList.contains('curseur-selection')
+          && document.getElementById('modal-commerce').hidden === true;
+      });
+
+      await verifierAsync('sélection carte : démarrer une nouvelle sélection annule la précédente', async () => {
+        dernierePosition = null;
+        document.getElementById('bouton-ajouter-mobilier').click();
+        document.getElementById('bouton-ajouter-commerce').click();
+        map.fire('click', { latlng: L.latLng(48.82, 2.19) });
+        const resultat = document.getElementById('modal-commerce').hidden === false
+          && document.getElementById('modal-mobilier-urbain').hidden === true
+          && positionManuelleCommerce[0] === 48.82;
+        fermerFormulaireCommerce();
+        return resultat;
+      });
+
+      await verifierAsync('sélection carte : annuler le formulaire après une sélection manuelle permet une nouvelle sélection propre', async () => {
+        dernierePosition = null;
+        document.getElementById('bouton-ajouter-mobilier').click();
+        map.fire('click', { latlng: L.latLng(48.83, 2.20) });
+        document.getElementById('bouton-annuler-mobilier').click();
+        const resetApresAnnulation = positionManuelleMobilier === null;
+
+        document.getElementById('bouton-ajouter-mobilier').click();
+        const nouvelleSelectionDemandee = document.getElementById('banniere-selection').hidden === false;
+        map.fire('click', { latlng: L.latLng(48.84, 2.21) });
+        const bonneCoordonnee = positionManuelleMobilier
+          && positionManuelleMobilier[0] === 48.84 && positionManuelleMobilier[1] === 2.21;
+        document.getElementById('bouton-annuler-mobilier').click();
+
+        return resetApresAnnulation && nouvelleSelectionDemandee && bonneCoordonnee;
+      });
+
+      await verifierAsync('sélection carte : avec GPS disponible, le formulaire s\'ouvre directement sans bannière', async () => {
+        onPositionRecue({ coords: { latitude: 48.80, longitude: 2.16 } });
+        document.getElementById('bouton-ajouter-mobilier').click();
+        const resultat = document.getElementById('modal-mobilier-urbain').hidden === false
+          && document.getElementById('banniere-selection').hidden === true
+          && positionManuelleMobilier === null;
+        fermerFormulaireMobilier();
         return resultat;
       });
 

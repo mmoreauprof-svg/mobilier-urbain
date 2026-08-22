@@ -146,8 +146,8 @@ Une fois les points ouverts tranchés : structure de dossiers, dépôt Git local
 4. ✅ Saisie d'un mobilier urbain
 5. ✅ Saisie d'un commerce
 6. ✅ Modification / suppression
-7. Icônes stylisées définitives (mobilier urbain + couleurs commerce)
-8. Sélection manuelle d'un point sur la carte (repli sans GPS, cf. §6.4bis)
+7. ✅ Icônes stylisées définitives (mobilier urbain + couleurs commerce)
+8. ✅ Sélection manuelle d'un point sur la carte (repli sans GPS, cf. §6.4bis)
 9. Export GPKG
 10. Import GPKG (remplacer / fusionner)
 11. Installabilité PWA (manifest, icône d'app, écran d'accueil)
