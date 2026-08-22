@@ -102,15 +102,26 @@ Sans GPS fiable (PC de développement, ou signal faible en intérieur), la créa
   - **Sinon** : un message invite à cliquer sur la carte (« Cliquez sur la carte pour choisir l'emplacement »), le curseur change, et le **prochain clic sur la carte** définit les coordonnées ; le formulaire s'ouvre alors normalement avec cette position.
 - Ce mécanisme est universel : il n'est pas réservé au PC. Il reste disponible aussi sur téléphone si le GPS est indisponible ou imprécis (bâtiment, signal faible), pour positionner manuellement le point sur la carte.
 
-### 6.5 Persistance, Import et Export ✅ (revu — 3 flux distincts)
+### 6.5 Persistance, Import et Export ✅ (revu — 3 flux distincts, couches multiples)
 
 1. **Restauration automatique au démarrage** — ce n'est *pas* un import : à chaque ouverture de l'app, les données déjà saisies sont relues depuis IndexedDB (stockage local du téléphone) et réaffichées sur la carte. Aucune action utilisateur, aucun fichier impliqué.
 
-2. **Export** — bouton dédié → génère un fichier `.gpkg` contenant les deux couches (`mobilier_urbain`, `commerce`, avec leur `uid`), téléchargeable/partageable (mail, AirDrop, etc.) depuis le téléphone.
+2. **Export** — bouton dédié → génère un fichier `.gpkg` contenant **6 couches** (voir §6.5bis), téléchargeable/partageable (mail, AirDrop, etc.) depuis le téléphone.
 
 3. **Import d'un fichier externe** — bouton dédié → sélection d'un fichier `.gpkg` (reçu de l'autre téléphone, ou réédité depuis QGIS) → l'app propose un choix explicite :
    - **Remplacer** : le contenu importé remplace entièrement les données locales.
    - **Fusionner** : les objets du fichier importé sont ajoutés à la base locale ; tout objet dont le `uid` existe déjà localement est ignoré (pas de mise à jour automatique, pas de résolution de conflit — géré manuellement dans QGIS si besoin, cf. §6.1bis).
+   - Ces deux opérations parcourent **les 6 couches du fichier importé**, mais reconsolident toujours vers les **2 bases locales** (`mobilier_urbain`, `commerce`, cf. §6.5bis) — la séparation en couches n'existe que dans le fichier `.gpkg`, jamais dans le stockage local du téléphone.
+
+### 6.5bis Structure des couches GPKG ✅
+
+Objectif : pouvoir afficher/masquer chaque catégorie indépendamment dans QGIS, en parallèle de l'usage de l'app.
+
+- **Mobilier urbain → 5 couches, une par `type_objet`** : `banc`, `corbeille`, `distributeur_sacs`, `arret_bus`, `abri_bus`. Chaque couche contient les mêmes champs qu'en §6.2 (`uid`, `etat`, `nombre`, `commentaire`, `last_update`, coordonnées) — `type_objet` y est redondant (une seule valeur possible par couche) mais conservé pour simplifier la réimportation.
+- **Commerce → 1 couche unique**, `commerce`, tous types confondus. `type_commerce` et `etat` (Occupé/Vacant) restent de simples attributs de cette couche, filtrables et stylables dans QGIS sans séparation physique en plusieurs fichiers/tables.
+- **Noms techniques** : en ASCII, minuscules, underscores — plus sûrs pour la compatibilité SIG que des accents ou espaces. L'affichage dans QGIS peut néanmoins rester en français lisible via le champ `identifier` du GeoPackage (métadonnée de la couche, distincte du nom technique de table) : ex. table `banc` → identifiant affiché « Bancs ».
+- **Identifiants** : `uid` (texte, dédoublonnage) et `fid` (entier, imposé par GeoPackage) suivent les mêmes règles que définies en §3bis, appliquées indépendamment dans chacune des 6 tables.
+- Cette séparation en couches est **propre au fichier `.gpkg`** : le stockage local (IndexedDB) reste organisé en 2 bases seulement (`mobilier_urbain`, `commerce`), comme décrit en §3 — l'export répartit vers les 6 couches, l'import consolide depuis les 6 couches vers les 2 bases.
 
 **Emplacement des fichiers** ✅ — diffère selon la plateforme :
 - **Import** : identique partout, via le sélecteur de fichiers natif (`<input type="file">`) — ouvre l'app Fichiers (iPhone) ou l'équivalent Android, navigation manuelle jusqu'au `.gpkg`.
@@ -148,6 +159,6 @@ Une fois les points ouverts tranchés : structure de dossiers, dépôt Git local
 6. ✅ Modification / suppression
 7. ✅ Icônes stylisées définitives (mobilier urbain + couleurs commerce)
 8. ✅ Sélection manuelle d'un point sur la carte (repli sans GPS, cf. §6.4bis)
-9. Export GPKG
-10. Import GPKG (remplacer / fusionner)
+9. Export GPKG (6 couches : 5 pour le mobilier urbain par type, 1 pour les commerces — cf. §6.5bis) — **en attente de spécifications détaillées avant démarrage**
+10. Import GPKG (remplacer / fusionner, consolidation des 6 couches vers les 2 bases locales — cf. §6.5bis) — **en attente de spécifications détaillées avant démarrage**
 11. Installabilité PWA (manifest, icône d'app, écran d'accueil)
