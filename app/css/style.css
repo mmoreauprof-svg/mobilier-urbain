@@ -2,6 +2,7 @@ html, body {
   margin: 0;
   padding: 0;
   height: 100%;
+  font-family: sans-serif;
 }
 
 #map {
@@ -21,7 +22,7 @@ html, body {
   background: #d33;
   color: white;
   padding: 10px 12px;
-  font: 14px sans-serif;
+  font-size: 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -44,7 +45,7 @@ html, body {
 
 .banniere-selection {
   position: fixed;
-  bottom: 90px;
+  bottom: 72px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 2500;
@@ -52,7 +53,7 @@ html, body {
   color: white;
   padding: 10px 16px;
   border-radius: 20px;
-  font: 14px sans-serif;
+  font-size: 14px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
   text-align: center;
   cursor: pointer;
@@ -68,14 +69,16 @@ html, body {
 
 #code-appareil-label {
   position: absolute;
-  bottom: 8px;
+  bottom: 64px;
   left: 8px;
   z-index: 1000;
   background: rgba(255, 255, 255, 0.85);
   padding: 4px 8px;
   border-radius: 4px;
-  font: 12px sans-serif;
+  font-size: 12px;
 }
+
+/* --- Dialogues centrés classiques (identification, choix import) --- */
 
 .modal-overlay {
   display: flex;
@@ -93,13 +96,22 @@ html, body {
 
 .modal-contenu {
   background: white;
-  padding: 24px;
+  padding: 20px;
+  font-family: sans-serif;
+  box-sizing: border-box;
+}
+
+.modal-overlay .modal-contenu {
   border-radius: 8px;
   max-width: 320px;
   width: 90%;
-  font-family: sans-serif;
   max-height: 85vh;
   overflow-y: auto;
+}
+
+.modal-contenu h2 {
+  font-size: 17px;
+  margin: 0 0 10px;
 }
 
 .modal-contenu input,
@@ -123,52 +135,18 @@ html, body {
   font-size: 14px;
 }
 
+/* Boutons d'action empilés en pleine largeur (pas de rangée horizontale) :
+   avec 2 ou 3 boutons et des libellés longs ("Enregistrer les
+   modifications"), une rangée horizontale n'a pas la place de tous les
+   contenir, et l'ancienne astuce margin-right:auto sur .bouton-danger
+   faisait alors déborder ce bouton hors du conteneur au lieu de rétrécir
+   proprement. L'empilement vertical est robuste quel que soit le nombre de
+   boutons ou la largeur du conteneur (PC comme mobile). column-reverse met
+   l'action principale (Enregistrer) en haut et la suppression tout en bas. */
 .modal-boutons {
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column-reverse;
   gap: 8px;
-}
-
-.erreur {
-  color: #d33;
-  font-size: 13px;
-}
-
-.boutons-flottants {
-  position: absolute;
-  bottom: 16px;
-  right: 16px;
-  z-index: 1000;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-}
-
-.bouton-flottant {
-  padding: 12px 18px;
-  font-size: 15px;
-  border: none;
-  border-radius: 24px;
-  background: #1a73e8;
-  color: white;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-}
-
-.bouton-flottant-commerce {
-  background: #e65100;
-}
-
-.boutons-fichier {
-  top: 16px;
-  bottom: auto;
-  right: 16px;
-}
-
-.bouton-flottant-fichier {
-  background: #555;
-  padding: 8px 14px;
-  font-size: 13px;
 }
 
 .modal-boutons-colonne {
@@ -177,8 +155,21 @@ html, body {
   gap: 8px;
 }
 
+.modal-boutons button,
 .modal-boutons-colonne button {
   width: 100%;
+  box-sizing: border-box;
+}
+
+.bouton-large {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  margin-bottom: 10px;
+  font-size: 15px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: white;
 }
 
 .bouton-danger {
@@ -186,41 +177,11 @@ html, body {
   color: white;
   border: none;
   border-radius: 4px;
-  margin-right: auto;
 }
 
-.filtres-conteneur {
-  position: absolute;
-  top: 90px;
-  left: 10px;
-  z-index: 1000;
-  font-family: sans-serif;
-}
-
-.bouton-filtres-toggle {
-  padding: 6px 10px;
+.erreur {
+  color: #d33;
   font-size: 13px;
-  border: none;
-  border-radius: 4px;
-  background: white;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
-}
-
-.panneau-filtres {
-  margin-top: 4px;
-  background: white;
-  border-radius: 4px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
-  padding: 8px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-.panneau-filtres[hidden] {
-  display: none;
 }
 
 .icone-mobilier-avec-badge {
@@ -243,4 +204,171 @@ html, body {
   text-align: center;
   padding: 0 2px;
   box-shadow: 0 0 0 1px white;
+}
+
+/* --- Formulaires mobilier/commerce et écran fichier : adaptatifs PC/mobile --- */
+/* Mobile (par défaut) : écran plein au-dessus de la barre d'onglets. */
+
+.panneau-formulaire {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 56px;
+  z-index: 1800;
+  background: transparent;
+}
+
+.panneau-formulaire[hidden] {
+  display: none;
+}
+
+.panneau-formulaire .modal-contenu {
+  height: 100%;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.ecran-fichier-mobile .modal-contenu {
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- PC : barre d'outils, panneaux mobile masqués --- */
+
+.barre-outils-pc {
+  display: none;
+}
+
+#bouton-filtres-mobile {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1500;
+  padding: 8px 12px;
+  font-size: 13px;
+  border: none;
+  border-radius: 20px;
+  background: white;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+.barre-onglets-mobile {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 56px;
+  z-index: 1900;
+  display: flex;
+  background: white;
+  border-top: 1px solid #ddd;
+  box-shadow: 0 -1px 4px rgba(0, 0, 0, 0.15);
+}
+
+.barre-onglets-mobile .onglet {
+  flex: 1;
+  border: none;
+  background: none;
+  font-size: 12px;
+  color: #555;
+}
+
+.barre-onglets-mobile .onglet.actif {
+  color: #1a73e8;
+  font-weight: bold;
+}
+
+.panneau-filtres {
+  position: absolute;
+  top: 50px;
+  right: 10px;
+  z-index: 1600;
+  background: white;
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.panneau-filtres[hidden] {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .barre-outils-pc {
+    display: flex;
+    position: absolute;
+    top: 10px;
+    left: 54px;
+    z-index: 1500;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    padding: 6px;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .bouton-outil {
+    padding: 8px 12px;
+    font-size: 13px;
+    border: none;
+    border-radius: 4px;
+    background: #f1f3f4;
+    white-space: nowrap;
+  }
+
+  .bouton-outil:hover {
+    background: #e3e6e8;
+  }
+
+  .barre-outils-separateur {
+    width: 1px;
+    align-self: stretch;
+    background: #ddd;
+    margin: 0 2px;
+  }
+
+  #bouton-filtres-mobile,
+  .barre-onglets-mobile,
+  .ecran-fichier-mobile {
+    display: none;
+  }
+
+  #code-appareil-label {
+    bottom: 8px;
+  }
+
+  .banniere-selection {
+    bottom: 24px;
+  }
+
+  .panneau-filtres {
+    top: 54px;
+    left: 54px;
+    right: auto;
+  }
+
+  /* Formulaires : bulle contextuelle ancrée au point cliqué (§6.4bis),
+     coordonnées calculées en JS dans interface.js (positionnerPanneauFormulaire). */
+  .panneau-formulaire {
+    top: var(--popover-top, 20%);
+    left: var(--popover-left, 40%);
+    right: auto;
+    bottom: auto;
+    width: 300px;
+    max-height: 80vh;
+  }
+
+  .panneau-formulaire .modal-contenu {
+    height: auto;
+    max-height: 80vh;
+    border-radius: 8px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+  }
 }

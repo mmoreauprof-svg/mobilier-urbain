@@ -43,7 +43,10 @@ function ouvrirFormulaireCommerceNouveau(positionManuelle) {
   document.getElementById('titre-modal-commerce').textContent = 'Nouveau commerce';
   document.getElementById('bouton-enregistrer-commerce').textContent = 'Enregistrer';
   document.getElementById('bouton-supprimer-commerce').hidden = true;
-  document.getElementById('modal-commerce').hidden = false;
+  const panneau = document.getElementById('modal-commerce');
+  panneau.hidden = false;
+  positionnerPanneauFormulaire(panneau, positionManuelle || getDernierePosition());
+  definirOngletActif('commerce');
 }
 
 function fermerFormulaireCommerce() {
@@ -51,6 +54,7 @@ function fermerFormulaireCommerce() {
   document.getElementById('form-commerce').reset();
   uidEnEditionCommerce = null;
   positionManuelleCommerce = null;
+  definirOngletActif('carte');
 }
 
 async function ouvrirEditionCommerce(uid) {
@@ -70,7 +74,10 @@ async function ouvrirEditionCommerce(uid) {
   document.getElementById('bouton-supprimer-commerce').hidden = false;
 
   map.closePopup();
-  document.getElementById('modal-commerce').hidden = false;
+  const panneau = document.getElementById('modal-commerce');
+  panneau.hidden = false;
+  positionnerPanneauFormulaire(panneau, [objet.lat, objet.lon]);
+  definirOngletActif('commerce');
 }
 
 async function enregistrerCommerceDepuisFormulaire() {

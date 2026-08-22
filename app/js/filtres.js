@@ -26,7 +26,6 @@ document.querySelectorAll('.case-filtre').forEach((caseACocher) => {
   });
 });
 
-document.getElementById('bouton-filtres').addEventListener('click', () => {
-  const panneau = document.getElementById('panneau-filtres');
-  panneau.hidden = !panneau.hidden;
-});
+// Le basculement d'affichage du panneau (clic sur l'icône filtre, PC ou
+// mobile) est géré dans interface.js — un seul endroit pour les deux
+// déclencheurs possibles.

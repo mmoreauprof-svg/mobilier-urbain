@@ -43,7 +43,10 @@ function ouvrirFormulaireMobilierNouveau(positionManuelle) {
   document.getElementById('titre-modal-mobilier').textContent = 'Nouveau mobilier urbain';
   document.getElementById('bouton-enregistrer-mobilier').textContent = 'Enregistrer';
   document.getElementById('bouton-supprimer-mobilier').hidden = true;
-  document.getElementById('modal-mobilier-urbain').hidden = false;
+  const panneau = document.getElementById('modal-mobilier-urbain');
+  panneau.hidden = false;
+  positionnerPanneauFormulaire(panneau, positionManuelle || getDernierePosition());
+  definirOngletActif('mobilier');
 }
 
 function fermerFormulaireMobilier() {
@@ -51,6 +54,7 @@ function fermerFormulaireMobilier() {
   document.getElementById('form-mobilier-urbain').reset();
   uidEnEditionMobilier = null;
   positionManuelleMobilier = null;
+  definirOngletActif('carte');
 }
 
 async function ouvrirEditionMobilier(uid) {
@@ -69,7 +73,10 @@ async function ouvrirEditionMobilier(uid) {
   document.getElementById('bouton-supprimer-mobilier').hidden = false;
 
   map.closePopup();
-  document.getElementById('modal-mobilier-urbain').hidden = false;
+  const panneau = document.getElementById('modal-mobilier-urbain');
+  panneau.hidden = false;
+  positionnerPanneauFormulaire(panneau, [objet.lat, objet.lon]);
+  definirOngletActif('mobilier');
 }
 
 async function enregistrerMobilierDepuisFormulaire() {

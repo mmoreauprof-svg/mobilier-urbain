@@ -27,7 +27,8 @@
 
     <div id="code-appareil-label" hidden></div>
 
-    <button id="bouton-filtres"></button>
+    <button id="bouton-filtres" class="bouton-filtres-icone"></button>
+    <button id="bouton-filtres-mobile" class="bouton-filtres-icone"></button>
     <div id="panneau-filtres" hidden>
       <label><input type="checkbox" class="case-filtre" data-categorie="Banc" checked></label>
       <label><input type="checkbox" class="case-filtre" data-categorie="Corbeille" checked></label>
@@ -45,6 +46,18 @@
 
     <button id="bouton-ajouter-mobilier"></button>
     <button id="bouton-ajouter-commerce"></button>
+
+    <div id="barre-onglets-mobile">
+      <button class="onglet actif" data-onglet="carte" id="onglet-carte"></button>
+      <button class="onglet" data-onglet="mobilier" id="onglet-mobilier"></button>
+      <button class="onglet" data-onglet="commerce" id="onglet-commerce"></button>
+      <button class="onglet" data-onglet="fichier" id="onglet-fichier"></button>
+    </div>
+
+    <div id="ecran-fichier" hidden>
+      <button type="button" id="bouton-exporter-mobile"></button>
+      <button type="button" id="bouton-importer-mobile"></button>
+    </div>
 
     <div id="modal-mobilier-urbain" hidden>
       <h2 id="titre-modal-mobilier"></h2>
@@ -136,7 +149,7 @@
 
     async function chargerFichiersApp() {
       const antiCache = '?t=' + Date.now();
-      const fichiers = ['util.js', 'map.js', 'position.js', 'device.js', 'geo.js', 'icones.js', 'storage.js', 'filtres.js', 'mobilier.js', 'commerce.js', 'gpkg.js'];
+      const fichiers = ['util.js', 'map.js', 'position.js', 'device.js', 'geo.js', 'icones.js', 'storage.js', 'filtres.js', 'interface.js', 'mobilier.js', 'commerce.js', 'gpkg.js'];
       for (const fichier of fichiers) {
         await chargerScript('../js/' + fichier + antiCache);
       }
@@ -371,6 +384,46 @@
       verifier(
         'nomFichierExport gère un code appareil manquant sans planter',
         nomFichierExport(null, new Date('2026-08-22T10:00:00.000Z')) === 'mobilier_urbain_XXX_2026-08-22.gpkg'
+      );
+
+      // --- estAffichagePC / positionnerPanneauFormulaire (app/js/interface.js) ---
+      verifier(
+        'estAffichagePC reflète le seuil de largeur (768px)',
+        (() => {
+          const original = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+          Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
+          const large = estAffichagePC() === true;
+          Object.defineProperty(window, 'innerWidth', { value: 400, configurable: true });
+          const etroit = estAffichagePC() === false;
+          Object.defineProperty(window, 'innerWidth', original);
+          return large && etroit;
+        })()
+      );
+      verifier(
+        'positionnerPanneauFormulaire ne positionne rien sur mobile (écran plein géré en CSS)',
+        (() => {
+          const original = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+          Object.defineProperty(window, 'innerWidth', { value: 400, configurable: true });
+          const panneau = document.createElement('div');
+          panneau.style.setProperty('--popover-top', '999px');
+          positionnerPanneauFormulaire(panneau, [48.8032, 2.1673]);
+          const inchange = panneau.style.getPropertyValue('--popover-top') === '999px';
+          Object.defineProperty(window, 'innerWidth', original);
+          return inchange;
+        })()
+      );
+      verifier(
+        'positionnerPanneauFormulaire calcule une position sur PC, dans les limites de l\'écran',
+        (() => {
+          const original = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+          Object.defineProperty(window, 'innerWidth', { value: 1200, configurable: true });
+          const panneau = document.createElement('div');
+          positionnerPanneauFormulaire(panneau, [48.8032, 2.1673]);
+          const top = parseFloat(panneau.style.getPropertyValue('--popover-top'));
+          const left = parseFloat(panneau.style.getPropertyValue('--popover-left'));
+          Object.defineProperty(window, 'innerWidth', original);
+          return top >= 10 && left >= 10 && left <= 1200 - 300 - 10;
+        })()
       );
     }
 
@@ -825,6 +878,46 @@
         document.getElementById('bouton-filtres').click();
         const referme = panneau.hidden === true;
         return ouvert && referme;
+      });
+
+      // --- Barre d'onglets mobile (app/js/interface.js) ---
+
+      await verifierAsync('onglets : "Mobilier" ouvre le formulaire et active l\'onglet correspondant', async () => {
+        onPositionRecue({ coords: { latitude: 48.80, longitude: 2.16 } });
+        document.getElementById('onglet-mobilier').click();
+        const formulaireOuvert = document.getElementById('modal-mobilier-urbain').hidden === false;
+        const ongletActif = document.getElementById('onglet-mobilier').classList.contains('actif')
+          && !document.getElementById('onglet-carte').classList.contains('actif');
+        fermerFormulaireMobilier();
+        return formulaireOuvert && ongletActif;
+      });
+
+      await verifierAsync('onglets : "Carte" referme le formulaire ouvert et réactive l\'onglet Carte', async () => {
+        onPositionRecue({ coords: { latitude: 48.80, longitude: 2.16 } });
+        document.getElementById('onglet-commerce').click();
+        const ouvertAvant = document.getElementById('modal-commerce').hidden === false;
+
+        document.getElementById('onglet-carte').click();
+        const fermeApres = document.getElementById('modal-commerce').hidden === true;
+        const carteActive = document.getElementById('onglet-carte').classList.contains('actif')
+          && !document.getElementById('onglet-commerce').classList.contains('actif');
+
+        return ouvertAvant && fermeApres && carteActive;
+      });
+
+      await verifierAsync('onglets : "Fichier" ouvre l\'écran dédié, dont les boutons appellent l\'export/import réels', async () => {
+        document.getElementById('onglet-fichier').click();
+        const ecranOuvert = document.getElementById('ecran-fichier').hidden === false;
+        const ongletActif = document.getElementById('onglet-fichier').classList.contains('actif');
+
+        const originalExport = window.exporterDonnees;
+        let appelExport = false;
+        window.exporterDonnees = () => { appelExport = true; return Promise.resolve(); };
+        document.getElementById('bouton-exporter-mobile').click();
+        window.exporterDonnees = originalExport;
+
+        document.getElementById('onglet-carte').click();
+        return ecranOuvert && ongletActif && appelExport;
       });
 
       // --- Échec de chargement au démarrage : mobilier urbain ---
