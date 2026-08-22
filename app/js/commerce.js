@@ -14,6 +14,8 @@ function construirePopupCommerce(objet) {
 function afficherMarqueurCommerce(objet) {
   const marker = L.marker([objet.lat, objet.lon], { icon: iconeCommerce(objet.etat) }).addTo(map);
   marker.bindPopup(construirePopupCommerce(objet));
+  marker.categorieFiltre = 'Commerce';
+  if (!categoriesVisibles.has(marker.categorieFiltre)) map.removeLayer(marker);
   commerceMarkers[objet.uid] = marker;
 }
 

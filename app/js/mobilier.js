@@ -10,16 +10,20 @@ function construirePopupMobilier(objet) {
 }
 
 function afficherMarqueurMobilier(objet) {
-  const marker = L.marker([objet.lat, objet.lon], { icon: iconeMobilier(objet.type_objet) }).addTo(map);
+  const marker = L.marker([objet.lat, objet.lon], { icon: iconeMobilier(objet.type_objet, objet.nombre) }).addTo(map);
   marker.bindPopup(construirePopupMobilier(objet));
+  marker.categorieFiltre = objet.type_objet;
+  if (!categoriesVisibles.has(marker.categorieFiltre)) map.removeLayer(marker);
   mobilierMarkers[objet.uid] = marker;
 }
 
 function mettreAJourMarqueurMobilier(objet) {
   const marker = mobilierMarkers[objet.uid];
   if (marker) {
-    marker.setIcon(iconeMobilier(objet.type_objet));
+    marker.setIcon(iconeMobilier(objet.type_objet, objet.nombre));
     marker.setPopupContent(construirePopupMobilier(objet));
+    marker.categorieFiltre = objet.type_objet;
+    appliquerFiltres();
   }
 }
 

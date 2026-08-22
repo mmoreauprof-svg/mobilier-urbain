@@ -18,8 +18,20 @@ function construireIcone(url) {
   });
 }
 
-function iconeMobilier(typeObjet) {
-  return construireIcone(FICHIERS_ICONE_MOBILIER[typeObjet]);
+function iconeMobilier(typeObjet, nombre) {
+  const url = FICHIERS_ICONE_MOBILIER[typeObjet];
+  if (!nombre || nombre <= 1) {
+    return construireIcone(url);
+  }
+  // Badge de quantité (§6.1 des spécifications) : nécessite un divIcon (HTML)
+  // pour superposer un nombre dynamique, une image seule (L.icon) ne le permet pas.
+  return L.divIcon({
+    html: `<img src="${url}" width="32" height="40"><span class="badge-nombre">${nombre}</span>`,
+    className: 'icone-mobilier-avec-badge',
+    iconSize: [32, 40],
+    iconAnchor: [16, 40],
+    popupAnchor: [0, -36]
+  });
 }
 
 function iconeCommerce(etat) {

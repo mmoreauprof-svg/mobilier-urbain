@@ -159,10 +159,88 @@ html, body {
   background: #e65100;
 }
 
+.boutons-fichier {
+  top: 16px;
+  bottom: auto;
+  right: 16px;
+}
+
+.bouton-flottant-fichier {
+  background: #555;
+  padding: 8px 14px;
+  font-size: 13px;
+}
+
+.modal-boutons-colonne {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modal-boutons-colonne button {
+  width: 100%;
+}
+
 .bouton-danger {
   background: #d33;
   color: white;
   border: none;
   border-radius: 4px;
   margin-right: auto;
+}
+
+.filtres-conteneur {
+  position: absolute;
+  top: 90px;
+  left: 10px;
+  z-index: 1000;
+  font-family: sans-serif;
+}
+
+.bouton-filtres-toggle {
+  padding: 6px 10px;
+  font-size: 13px;
+  border: none;
+  border-radius: 4px;
+  background: white;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+.panneau-filtres {
+  margin-top: 4px;
+  background: white;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.panneau-filtres[hidden] {
+  display: none;
+}
+
+.icone-mobilier-avec-badge {
+  background: transparent;
+  border: none;
+  position: relative;
+}
+
+.badge-nombre {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #d33;
+  color: white;
+  font: bold 11px sans-serif;
+  border-radius: 50%;
+  min-width: 16px;
+  height: 16px;
+  line-height: 16px;
+  text-align: center;
+  padding: 0 2px;
+  box-shadow: 0 0 0 1px white;
 }

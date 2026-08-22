@@ -27,6 +27,16 @@
 
     <div id="code-appareil-label" hidden></div>
 
+    <button id="bouton-filtres"></button>
+    <div id="panneau-filtres" hidden>
+      <label><input type="checkbox" class="case-filtre" data-categorie="Banc" checked></label>
+      <label><input type="checkbox" class="case-filtre" data-categorie="Corbeille" checked></label>
+      <label><input type="checkbox" class="case-filtre" data-categorie="Distributeur de sacs" checked></label>
+      <label><input type="checkbox" class="case-filtre" data-categorie="Arrêt de bus" checked></label>
+      <label><input type="checkbox" class="case-filtre" data-categorie="Abri bus" checked></label>
+      <label><input type="checkbox" class="case-filtre" data-categorie="Commerce" checked></label>
+    </div>
+
     <div id="modal-code-appareil" hidden>
       <input type="text" id="input-code-appareil" maxlength="4">
       <p id="erreur-code-appareil" hidden></p>
@@ -87,6 +97,15 @@
         <button type="button" id="bouton-enregistrer-commerce">Enregistrer</button>
       </form>
     </div>
+
+    <button id="bouton-exporter"></button>
+    <button id="bouton-importer"></button>
+    <input type="file" id="input-fichier-import" accept=".gpkg" hidden>
+    <div id="modal-import-choix" hidden>
+      <button type="button" id="bouton-import-fusionner">Fusionner</button>
+      <button type="button" id="bouton-import-remplacer">Remplacer</button>
+      <button type="button" id="bouton-import-annuler">Annuler</button>
+    </div>
   </div>
 
   <script>
@@ -98,6 +117,7 @@
   </script>
 
   <script src="../lib/leaflet/leaflet.js"></script>
+  <script src="../lib/geopackage/geopackage.min.js"></script>
 
   <script>
     // Les fichiers de l'app sont chargés dynamiquement avec un paramètre
@@ -116,7 +136,7 @@
 
     async function chargerFichiersApp() {
       const antiCache = '?t=' + Date.now();
-      const fichiers = ['util.js', 'map.js', 'position.js', 'device.js', 'geo.js', 'icones.js', 'storage.js', 'mobilier.js', 'commerce.js'];
+      const fichiers = ['util.js', 'map.js', 'position.js', 'device.js', 'geo.js', 'icones.js', 'storage.js', 'filtres.js', 'mobilier.js', 'commerce.js', 'gpkg.js'];
       for (const fichier of fichiers) {
         await chargerScript('../js/' + fichier + antiCache);
       }
@@ -303,6 +323,54 @@
         'iconeCommerce renvoie le bon fichier SVG selon l\'état',
         iconeCommerce('Occupé').options.iconUrl === 'icons/commerce-occupe.svg'
         && iconeCommerce('Vacant').options.iconUrl === 'icons/commerce-vacant.svg'
+      );
+
+      // --- Badge de quantité sur iconeMobilier (app/js/icones.js) ---
+      verifier(
+        'iconeMobilier sans nombre (ou nombre=1) reste une icône simple, sans badge',
+        typeof iconeMobilier('Banc').options.iconUrl === 'string'
+        && typeof iconeMobilier('Banc', 1).options.iconUrl === 'string'
+      );
+      verifier(
+        'iconeMobilier avec nombre > 1 ajoute un badge visible dans l\'icône',
+        (() => {
+          const icone = iconeMobilier('Banc', 3);
+          return icone.options.className === 'icone-mobilier-avec-badge'
+            && icone.options.html.includes('badge-nombre')
+            && icone.options.html.includes('>3<');
+        })()
+      );
+
+      // --- encoderPointGeoPackageBinary (app/js/gpkg.js) ---
+      verifier(
+        'encoderPointGeoPackageBinary produit un en-tête GeoPackageBinary valide',
+        (() => {
+          const octets = encoderPointGeoPackageBinary(2.1673, 48.8032, 4326);
+          const vue = new DataView(octets.buffer);
+          return octets.length === 29
+            && vue.getUint8(0) === 0x47 && vue.getUint8(1) === 0x50 // 'G','P'
+            && vue.getInt32(4, true) === 4326                       // srs_id
+            && vue.getUint32(9, true) === 1;                        // type WKB = Point
+        })()
+      );
+      verifier(
+        'encoderPointGeoPackageBinary encode les coordonnées exactes (lon/lat, pas lat/lon)',
+        (() => {
+          const octets = encoderPointGeoPackageBinary(2.1673, 48.8032, 4326);
+          const vue = new DataView(octets.buffer);
+          return Math.abs(vue.getFloat64(13, true) - 2.1673) < 1e-9
+            && Math.abs(vue.getFloat64(21, true) - 48.8032) < 1e-9;
+        })()
+      );
+
+      // --- nomFichierExport (app/js/gpkg.js) ---
+      verifier(
+        'nomFichierExport construit un nom lisible avec code appareil et date',
+        nomFichierExport('AND', new Date('2026-08-22T10:00:00.000Z')) === 'mobilier_urbain_AND_2026-08-22.gpkg'
+      );
+      verifier(
+        'nomFichierExport gère un code appareil manquant sans planter',
+        nomFichierExport(null, new Date('2026-08-22T10:00:00.000Z')) === 'mobilier_urbain_XXX_2026-08-22.gpkg'
       );
     }
 
@@ -713,6 +781,52 @@
         return resultat;
       });
 
+      // --- Filtre d'affichage par catégorie (§6.1quater) ---
+
+      await verifierAsync('filtre : décocher une catégorie masque ses marqueurs, les recocher les réaffiche', async () => {
+        const objet = { uid: 'TST-FILT-1', type_objet: 'Corbeille', etat: 'Bon', nombre: 1, commentaire: '', last_update: new Date().toISOString(), lat: 60, lon: 60 };
+        await enregistrerMobilierUrbain(objet);
+        afficherMarqueurMobilier(objet);
+        const marker = mobilierMarkers['TST-FILT-1'];
+
+        const caseCorbeille = document.querySelector('.case-filtre[data-categorie="Corbeille"]');
+        caseCorbeille.checked = false;
+        caseCorbeille.dispatchEvent(new Event('change'));
+        const masque = !map.hasLayer(marker);
+
+        caseCorbeille.checked = true;
+        caseCorbeille.dispatchEvent(new Event('change'));
+        const reaffiche = map.hasLayer(marker);
+
+        return masque && reaffiche;
+      });
+
+      await verifierAsync('filtre : un objet créé pendant qu\'une catégorie est masquée reste masqué jusqu\'à réactivation', async () => {
+        const caseArret = document.querySelector('.case-filtre[data-categorie="Arrêt de bus"]');
+        caseArret.checked = false;
+        caseArret.dispatchEvent(new Event('change'));
+
+        const objet = { uid: 'TST-FILT-2', type_objet: 'Arrêt de bus', etat: 'Bon', nombre: 1, commentaire: '', last_update: new Date().toISOString(), lat: 61, lon: 61 };
+        await enregistrerMobilierUrbain(objet);
+        afficherMarqueurMobilier(objet);
+        const marker = mobilierMarkers['TST-FILT-2'];
+        const masqueDesLaCreation = !map.hasLayer(marker);
+
+        caseArret.checked = true;
+        caseArret.dispatchEvent(new Event('change'));
+        return masqueDesLaCreation && map.hasLayer(marker);
+      });
+
+      await verifierAsync('filtre : le bouton "Filtres" bascule la visibilité du panneau', async () => {
+        const panneau = document.getElementById('panneau-filtres');
+        panneau.hidden = true;
+        document.getElementById('bouton-filtres').click();
+        const ouvert = panneau.hidden === false;
+        document.getElementById('bouton-filtres').click();
+        const referme = panneau.hidden === true;
+        return ouvert && referme;
+      });
+
       // --- Échec de chargement au démarrage : mobilier urbain ---
       await verifierAsync('mobilier : échec de chargement initial affiche la bannière (pas confondu avec "base vide")', async () => {
         masquerBanniere();
@@ -773,6 +887,93 @@
         const resultat = banniereVisibleAvec('inattendue');
         masquerBanniere();
         return resultat;
+      });
+
+      // --- Export / Import GeoPackage (§6.5, §6.5bis — étapes 9-10) ---
+
+      await verifierAsync('gpkg : export produit 6 couches avec identifiants QGIS et données correctes', async () => {
+        await viderStore('mobilier_urbain');
+        await viderStore('commerce');
+        await enregistrerMobilierUrbain({ uid: 'TST-G1', type_objet: 'Banc', etat: 'Bon', nombre: 2, commentaire: 'Export test', last_update: new Date().toISOString(), lat: 48.80, lon: 2.16 });
+        await enregistrerCommerce({ uid: 'TST-G2', nom_commerce: 'Test', type_commerce: 'Coiffeur', etat: 'Occupé', date_fermeture: '', commentaire: '', last_update: new Date().toISOString(), lat: 48.81, lon: 2.17 });
+
+        const buffer = await construireGpkg();
+        const gp = await window.GeoPackage.GeoPackageAPI.open(new Uint8Array(buffer));
+        const tables = gp.getFeatureTables().sort();
+        const identifiantBanc = gp.connection.get("SELECT identifier FROM gpkg_contents WHERE table_name = 'banc'").identifier;
+        const releve = lireGpkg(gp);
+        gp.close();
+
+        const tablesAttendues = JSON.stringify(['abri_bus', 'arret_bus', 'banc', 'commerce', 'corbeille', 'distributeur_sacs']);
+        return JSON.stringify(tables) === tablesAttendues
+          && identifiantBanc === 'Bancs'
+          && releve.mobiliers.length === 1 && releve.mobiliers[0].uid === 'TST-G1'
+          && releve.commerces.length === 1 && releve.commerces[0].uid === 'TST-G2';
+      });
+
+      await verifierAsync('gpkg : sélectionner un fichier via l\'input déclenche la lecture et ouvre le choix remplacer/fusionner', async () => {
+        const buffer = await construireGpkg();
+        const fichier = new File([buffer], 'liaison.gpkg');
+        const dt = new DataTransfer();
+        dt.items.add(fichier);
+        const input = document.getElementById('input-fichier-import');
+        input.files = dt.files;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+
+        await attendreCondition(() => document.getElementById('modal-import-choix').hidden === false);
+        const resultat = !document.getElementById('modal-import-choix').hidden;
+        document.getElementById('bouton-import-annuler').click();
+        return resultat && gpkgEnAttenteImport === null;
+      });
+
+      await verifierAsync('gpkg : import "fusionner" ignore les doublons et ajoute les objets réellement nouveaux', async () => {
+        const objetDistant = { uid: 'TST-G3', type_objet: 'Corbeille', etat: 'Bon', nombre: 1, commentaire: '', last_update: new Date().toISOString(), lat: 48.82, lon: 2.18 };
+        await enregistrerMobilierUrbain(objetDistant);
+        const bufferAvecNouveau = await construireGpkg();
+        await supprimerDeStore('mobilier_urbain', 'TST-G3'); // simule : objet saisi ailleurs, pas encore reçu ici
+
+        const gp = await window.GeoPackage.GeoPackageAPI.open(new Uint8Array(bufferAvecNouveau));
+        gpkgEnAttenteImport = lireGpkg(gp);
+        gp.close();
+        document.getElementById('bouton-import-fusionner').click();
+        await attendre(100);
+
+        const mobiliers = await listerMobilierUrbain();
+        return mobiliers.filter((o) => o.uid === 'TST-G1').length === 1 // ancien objet non dupliqué
+          && mobiliers.some((o) => o.uid === 'TST-G3')                   // nouvel objet ajouté
+          && !!mobilierMarkers['TST-G3'];
+      });
+
+      await verifierAsync('gpkg : import "remplacer" vide la base locale et les marqueurs avant de charger le nouveau contenu', async () => {
+        const gpTemp = await window.GeoPackage.GeoPackageAPI.create();
+        creerCouche(gpTemp, 'banc', CHAMPS_MOBILIER_TYPES, 'Bancs');
+        creerCouche(gpTemp, 'corbeille', CHAMPS_MOBILIER_TYPES, 'Corbeilles');
+        creerCouche(gpTemp, 'distributeur_sacs', CHAMPS_MOBILIER_TYPES, 'Distributeurs de sacs');
+        creerCouche(gpTemp, 'arret_bus', CHAMPS_MOBILIER_TYPES, 'Arrêts de bus');
+        creerCouche(gpTemp, 'abri_bus', CHAMPS_MOBILIER_TYPES, 'Abris bus');
+        creerCouche(gpTemp, 'commerce', CHAMPS_COMMERCE_TYPES, 'Commerces');
+        insererLigne(gpTemp, 'abri_bus', { uid: 'TST-G9', type_objet: 'Abri bus', etat: 'HS', nombre: 1, commentaire: 'Remplacement', last_update: new Date().toISOString() }, 2.50, 48.50);
+        const buffer = await gpTemp.export();
+        gpTemp.close();
+
+        const gp = await window.GeoPackage.GeoPackageAPI.open(new Uint8Array(buffer));
+        gpkgEnAttenteImport = lireGpkg(gp);
+        gp.close();
+        document.getElementById('bouton-import-remplacer').click();
+        await attendre(100);
+
+        const mobiliers = await listerMobilierUrbain();
+        const commerces = await listerCommerces();
+        return mobiliers.length === 1 && mobiliers[0].uid === 'TST-G9'
+          && commerces.length === 0
+          && !mobilierMarkers['TST-G1'] && !!mobilierMarkers['TST-G9'];
+      });
+
+      await verifierAsync('gpkg : import d\'un fichier invalide affiche une alerte sans planter', async () => {
+        alertesCapturees.length = 0;
+        const fichierInvalide = new File(['ceci n\'est pas un gpkg'], 'invalide.gpkg');
+        await declencherImport(fichierInvalide);
+        return alertesCapturees.length > 0 && derniereAlerte().includes('illisible');
       });
     }
 

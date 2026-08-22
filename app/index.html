@@ -19,6 +19,18 @@
 
   <div id="code-appareil-label" hidden></div>
 
+  <div class="filtres-conteneur">
+    <button id="bouton-filtres" class="bouton-filtres-toggle">Filtres ▾</button>
+    <div id="panneau-filtres" class="panneau-filtres" hidden>
+      <label><input type="checkbox" class="case-filtre" data-categorie="Banc" checked> Bancs</label>
+      <label><input type="checkbox" class="case-filtre" data-categorie="Corbeille" checked> Corbeilles</label>
+      <label><input type="checkbox" class="case-filtre" data-categorie="Distributeur de sacs" checked> Distributeurs de sacs</label>
+      <label><input type="checkbox" class="case-filtre" data-categorie="Arrêt de bus" checked> Arrêts de bus</label>
+      <label><input type="checkbox" class="case-filtre" data-categorie="Abri bus" checked> Abris bus</label>
+      <label><input type="checkbox" class="case-filtre" data-categorie="Commerce" checked> Commerces</label>
+    </div>
+  </div>
+
   <div id="modal-code-appareil" class="modal-overlay" hidden>
     <div class="modal-contenu">
       <h2>Identification de l'appareil</h2>
@@ -32,6 +44,24 @@
   <div class="boutons-flottants">
     <button id="bouton-ajouter-mobilier" class="bouton-flottant">+ Mobilier urbain</button>
     <button id="bouton-ajouter-commerce" class="bouton-flottant bouton-flottant-commerce">+ Commerce</button>
+  </div>
+
+  <div class="boutons-flottants boutons-fichier">
+    <button id="bouton-exporter" class="bouton-flottant bouton-flottant-fichier">Exporter</button>
+    <button id="bouton-importer" class="bouton-flottant bouton-flottant-fichier">Importer</button>
+  </div>
+  <input type="file" id="input-fichier-import" accept=".gpkg" hidden>
+
+  <div id="modal-import-choix" class="modal-overlay" hidden>
+    <div class="modal-contenu">
+      <h2>Importer les données</h2>
+      <p>Fichier lu avec succès. Comment voulez-vous l'intégrer ?</p>
+      <div class="modal-boutons-colonne">
+        <button type="button" id="bouton-import-fusionner">Fusionner (ajouter les nouveaux objets)</button>
+        <button type="button" id="bouton-import-remplacer" class="bouton-danger">Remplacer tout</button>
+        <button type="button" id="bouton-import-annuler">Annuler</button>
+      </div>
+    </div>
   </div>
 
   <div id="modal-mobilier-urbain" class="modal-overlay" hidden>
@@ -120,7 +150,10 @@
   <script src="js/geo.js"></script>
   <script src="js/icones.js"></script>
   <script src="js/storage.js"></script>
+  <script src="js/filtres.js"></script>
   <script src="js/mobilier.js"></script>
   <script src="js/commerce.js"></script>
+  <script src="lib/geopackage/geopackage.min.js"></script>
+  <script src="js/gpkg.js"></script>
 </body>
 </html>

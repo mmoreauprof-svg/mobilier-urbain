@@ -56,6 +56,16 @@ async function supprimerDeStore(nomStore, uid) {
   });
 }
 
+async function viderStore(nomStore) {
+  const db = await basePromise;
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(nomStore, 'readwrite');
+    transaction.objectStore(nomStore).clear();
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+}
+
 function enregistrerMobilierUrbain(objet) {
   return enregistrerDansStore('mobilier_urbain', objet);
 }
