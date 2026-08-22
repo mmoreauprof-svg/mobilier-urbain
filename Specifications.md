@@ -146,6 +146,15 @@ Détail et code dans `app/js/gpkg.js` (commentaire d'en-tête). Sans objet pour 
 - **Export sur Android (Chrome)** : boîte de dialogue "Enregistrer sous" native (File System Access API) — choix du dossier et du nom à chaque export.
 - **Export sur iPhone (Safari)** : cette API n'existe pas ; l'app ouvre la feuille de partage native ("Partager…") pour enregistrer dans Fichiers, AirDrop, mail, etc. Sans cela, le fichier irait dans un dossier Téléchargements par défaut, peu pratique.
 
+### 6.6 Interface adaptative PC / mobile ✅
+
+Deux concepts d'interface différents selon la taille d'écran, choisis après revue de maquettes (2026-08-22) — bascule **purement responsive** (`window.innerWidth ≥ 768px`), sans détection de plateforme, cohérent avec §6.4bis :
+
+- **PC — barre d'outils + bulle contextuelle.** Une fine barre d'icônes (« + Mobilier », « + Commerce », Filtres, Exporter, Importer) en haut à gauche, la carte reste visible à 100 % sinon. Les formulaires (création, édition) s'ouvrent en petite bulle **ancrée au point concerné sur la carte** (position GPS, point sélectionné manuellement, ou point du marqueur édité) plutôt qu'en grand panneau centré. Repli simple si la bulle déborderait de l'écran : elle est ramenée dans les limites visibles (pas d'inversion « intelligente » du côté d'ancrage — simplification assumée). Exporter/Importer restent des actions directes de la barre d'outils, sans écran intermédiaire.
+- **Mobile — barre d'onglets du bas.** 4 onglets fixes (Carte, Mobilier, Commerce, Fichier), toujours visibles y compris pendant la saisie. Toucher "Mobilier"/"Commerce" ouvre le même formulaire que le bouton correspondant sur PC, mais en écran plein (au-dessus de la barre d'onglets, qui reste accessible). "Fichier" regroupe Exporter/Importer sur un écran dédié (pas d'action directe en barre, contrairement au PC). Le filtre reste accessible via une icône flottante sur la carte plutôt que dans la barre d'onglets.
+- Le choix **Remplacer/Fusionner** à l'import et l'**identification de l'appareil** restent de vraies boîtes de dialogue centrées sur les deux plateformes : ils ne sont rattachés à aucun point de la carte.
+- Un même jeu de fonctions gère les deux modes (`app/js/interface.js` : `positionnerPanneauFormulaire`, `definirOngletActif`) — pas de code dupliqué entre PC et mobile, seul l'habillage CSS diffère selon la largeur d'écran.
+
 ## 7. Contraintes techniques ✅
 
 - Fonctionne dans un navigateur mobile moderne (Chrome Android récent, Safari iOS récent) — pas de version d'OS minimale stricte à fixer puisqu'il n'y a pas d'app native à publier.

@@ -120,3 +120,36 @@ Deux nouvelles fonctionnalités demandées suite au retour utilisateur sur l'exp
 - **Badge de quantité** (§6.1) : `iconeMobilier` accepte désormais un second paramètre `nombre` — icône simple inchangée si absent ou ≤ 1 (rétrocompatible avec les appels existants), bascule vers un `L.divIcon` avec un badge superposé si > 1. 2 tests logique pure.
 
 **Suite complète : 60/60 tests OK** (24 logique pure + 36 parcours fonctionnels), rejouée deux fois de suite.
+
+## Interface adaptative PC / mobile (2026-08-22)
+
+Refonte de l'interface (§6.6) : barre d'outils + bulle contextuelle ancrée au point sur PC, barre d'onglets + écrans pleins sur mobile — bascule purement responsive (`app/js/interface.js`, seuil 768px), sans code dupliqué entre les deux modes.
+
+6 nouveaux tests :
+- **Logique pure** : `estAffichagePC` reflète bien le seuil de largeur (testé en redéfinissant temporairement `window.innerWidth` via `Object.defineProperty`, restauré après) ; `positionnerPanneauFormulaire` ne touche à rien sur mobile (écran plein géré en CSS) et calcule une position dans les limites de l'écran sur PC.
+- **Fonctionnel** : l'onglet "Mobilier" ouvre le formulaire et s'active ; l'onglet "Carte" referme le formulaire ouvert et réactive l'onglet Carte ; l'onglet "Fichier" ouvre l'écran dédié dont les boutons appellent bien les vraies fonctions d'export/import (vérifié par substitution temporaire de `exporterDonnees`).
+
+**Vérifications manuelles complémentaires** (l'automatisation ne peut pas redimensionner un vrai navigateur) : app réelle testée aux deux tailles d'écran (1280px et 375px) via l'outil navigateur de Claude — bascule barre d'outils ↔ barre d'onglets confirmée, bulle positionnée à des coordonnées différentes selon le point cliqué (pas figée), écran plein mobile confirmé au-dessus de la barre d'onglets, navigation entre onglets fonctionnelle. Non vérifiable : rendu visuel exact (pas de capture d'écran possible dans cet environnement) — à confirmer par l'utilisateur.
+
+**Suite complète : 66/66 tests OK** (27 logique pure + 39 parcours fonctionnels), rejouée deux fois de suite.
+
+## Corrections retour utilisateur — interface PC (2026-08-22)
+
+Deux bugs signalés après test manuel, corrigés :
+
+1. **Bulle de formulaire tronquée en bas d'écran.** `positionnerPanneauFormulaire` estimait la hauteur du panneau à 340px (valeur devinée) pour calculer où le positionner sans déborder — la hauteur réelle mesurée est en fait 414px. Corrigé en mesurant la vraie hauteur (`getBoundingClientRect()`) : le panneau est désormais rendu visible (`hidden = false`) **avant** d'être positionné, pour que sa taille réelle soit disponible au moment du calcul. Confirmé par mesure directe : plus aucun débordement, bouton "Enregistrer" toujours dans l'écran, y compris pour un point bas sur la carte.
+2. **Barre d'outils PC recouvrant les boutons +/- de zoom de Leaflet** (les deux occupaient le même coin haut-gauche). Corrigé en décalant la barre d'outils sous le contrôle de zoom (`top: 90px` au lieu de `10px`) plutôt que de déplacer le contrôle de zoom lui-même (qui aurait pu avoir des effets de bord sur mobile). Confirmé par mesure des rectangles : aucun chevauchement.
+
+Aucun nouveau test automatisé nécessaire (aucune nouvelle règle testable en isolation ; la régression était visuelle/géométrique) — vérifié directement sur l'app réelle via l'outil navigateur (mesure de `getBoundingClientRect()` avant/après aux deux tailles d'écran). Suite existante rejouée sans régression (66/66 OK).
+
+## Corrections retour utilisateur — boutons débordants et position de la barre d'outils (2026-08-22)
+
+Nouveau retour après re-test : boutons "Supprimer/Annuler/Enregistrer" bien trop grands / rognés dans le formulaire d'édition, et préférence pour la barre d'outils à droite du zoom plutôt qu'en dessous.
+
+**Cause identifiée par mesure directe** (`getBoundingClientRect()` sur chaque bouton et son conteneur) : `.bouton-danger` utilisait `margin-right: auto` pour se placer à gauche dans une rangée `justify-content: flex-end` — avec 3 boutons dont un libellé long ("Enregistrer les modifications") qui ne tiennent pas sur une ligne, cette combinaison faisait déborder le bouton "Supprimer" **hors du conteneur** (`left: 114px` mesuré, alors que le formulaire commençait à `left: 149px`) au lieu de rétrécir proprement. Corrigé en empilant les boutons verticalement en pleine largeur (`flex-direction: column-reverse`, Enregistrer en haut, Supprimer tout en bas) — robuste quel que soit le nombre de boutons ou la largeur du conteneur, sur PC comme sur mobile.
+
+**Audit systématique demandé par l'utilisateur** avant de corriger : vérification par mesure (`getBoundingClientRect`, comparaison bords bouton/conteneur) de tous les écrans à boutons, aux tailles d'écran extrêmes (1280px, 780px juste au-dessus du seuil PC, 320px le plus étroit courant) : formulaire mobilier/commerce en création (2 boutons) et édition (3 boutons), écran Fichier mobile, choix remplacer/fusionner à l'import, barre d'onglets mobile, panneau de filtres. Un seul problème trouvé (celui ci-dessus, propre à `.modal-boutons`) ; tout le reste déjà correct.
+
+**Position de la barre d'outils PC** : déplacée à droite du contrôle de zoom (`top: 10px; left: 54px`) plutôt qu'en dessous, sur demande explicite de l'utilisateur (garder la logique "barre en haut"). Revérifié sans chevauchement avec le zoom, y compris à 780px de large (juste au-dessus du seuil desktop).
+
+Suite existante rejouée sans régression (66/66 OK).
