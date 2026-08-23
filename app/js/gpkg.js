@@ -29,6 +29,9 @@ const COUCHES_MOBILIER = [
 ];
 
 const CHAMPS_MOBILIER = ['uid', 'type_objet', 'etat', 'nombre', 'commentaire', 'last_update'];
+// commentaire est le seul champ facultatif — les autres, s'ils manquent (colonne
+// renommée/supprimée dans un .gpkg réédité), signalent une ligne corrompue (audit 2026-08-23, point 2).
+const CHAMPS_MOBILIER_OBLIGATOIRES = ['uid', 'type_objet', 'etat', 'nombre', 'last_update'];
 const CHAMPS_MOBILIER_TYPES = [
   { name: 'uid', dataType: 'TEXT' },
   { name: 'type_objet', dataType: 'TEXT' },
@@ -39,6 +42,8 @@ const CHAMPS_MOBILIER_TYPES = [
 ];
 
 const CHAMPS_COMMERCE = ['uid', 'nom_commerce', 'type_commerce', 'etat', 'date_fermeture', 'commentaire', 'last_update'];
+// nom_commerce, date_fermeture et commentaire sont facultatifs (§6.3).
+const CHAMPS_COMMERCE_OBLIGATOIRES = ['uid', 'type_commerce', 'etat', 'last_update'];
 const CHAMPS_COMMERCE_TYPES = [
   { name: 'uid', dataType: 'TEXT' },
   { name: 'nom_commerce', dataType: 'TEXT' },
@@ -92,18 +97,54 @@ function creerCouche(gp, table, champsTypes, identifiant) {
 
 // --- Lecture (bas niveau, contournement du bug de la librairie) ---
 
-function lireCouche(gp, table, champs) {
+const TYPES_MOBILIER_CONNUS = COUCHES_MOBILIER.map((c) => c.type);
+
+// Audit 2026-08-23 : un fichier .gpkg réédité dans QGIS peut contenir des lignes
+// invalides (géométrie non ponctuelle, colonne renommée/supprimée, valeur de
+// type_objet non reconnue) — les insérer telles quelles créerait des objets
+// corrompus ou invisibles (icône cassée, absents des filtres). On les compte et
+// on les écarte plutôt que de les accepter silencieusement (points 1, 2, 3).
+function lireCouche(gp, table, champs, champsObligatoires, champTypeAVerifier, valeursConnues) {
   const dao = gp.getFeatureDao(table);
-  const resultats = [];
+  const objets = [];
+  const compteurs = { geometrieInvalide: 0, champsManquants: 0, typeNonReconnu: 0 };
+
   for (const ligneBrute of dao.queryForAll()) {
     const row = dao.getRow(ligneBrute);
     const geo = row.geometry ? row.geometry.toGeoJSON() : null;
-    if (!geo || geo.type !== 'Point') continue;
+    if (!geo || geo.type !== 'Point') {
+      compteurs.geometrieInvalide++;
+      continue;
+    }
+
+    // getValueWithColumnName lève une exception (pas juste undefined) si la colonne
+    // n'existe carrément plus dans la table — sans ce try/catch, une seule ligne mal
+    // formée ferait planter la lecture de toute la couche plutôt que d'être ignorée.
     const objet = { lon: geo.coordinates[0], lat: geo.coordinates[1] };
-    for (const champ of champs) objet[champ] = row.getValueWithColumnName(champ);
-    resultats.push(objet);
+    let champsOk = true;
+    for (const champ of champs) {
+      let valeur;
+      try {
+        valeur = row.getValueWithColumnName(champ);
+      } catch (e) {
+        valeur = undefined;
+      }
+      objet[champ] = valeur;
+      if (champsObligatoires.includes(champ) && valeur === undefined) champsOk = false;
+    }
+
+    if (!champsOk) {
+      compteurs.champsManquants++;
+      continue;
+    }
+    if (champTypeAVerifier && !valeursConnues.includes(objet[champTypeAVerifier])) {
+      compteurs.typeNonReconnu++;
+      continue;
+    }
+
+    objets.push(objet);
   }
-  return resultats;
+  return { objets, compteurs };
 }
 
 // --- Construction / lecture d'un GeoPackage complet (6 couches, §6.5bis) ---
@@ -148,16 +189,54 @@ async function construireGpkg() {
 function lireGpkg(gp) {
   const tables = gp.getFeatureTables();
   const mobiliers = [];
+  const compteurs = { geometrieInvalide: 0, champsManquants: 0, typeNonReconnu: 0 };
+  const cumuler = (c) => {
+    compteurs.geometrieInvalide += c.geometrieInvalide;
+    compteurs.champsManquants += c.champsManquants;
+    compteurs.typeNonReconnu += c.typeNonReconnu;
+  };
+
   for (const couche of COUCHES_MOBILIER) {
     if (!tables.includes(couche.table)) continue;
-    mobiliers.push(...lireCouche(gp, couche.table, CHAMPS_MOBILIER));
+    const { objets, compteurs: c } = lireCouche(
+      gp, couche.table, CHAMPS_MOBILIER, CHAMPS_MOBILIER_OBLIGATOIRES, 'type_objet', TYPES_MOBILIER_CONNUS
+    );
+    mobiliers.push(...objets);
+    cumuler(c);
   }
-  const commerces = tables.includes('commerce') ? lireCouche(gp, 'commerce', CHAMPS_COMMERCE) : [];
-  return { mobiliers, commerces };
+
+  let commerces = [];
+  if (tables.includes('commerce')) {
+    const { objets, compteurs: c } = lireCouche(gp, 'commerce', CHAMPS_COMMERCE, CHAMPS_COMMERCE_OBLIGATOIRES);
+    commerces = objets;
+    cumuler(c);
+  }
+
+  return { mobiliers, commerces, compteurs };
+}
+
+// Message de confirmation d'import (audit 2026-08-23, point 1) : jusqu'ici
+// l'import ne rendait aucun compte, un import "réussi" pouvait avoir perdu des
+// objets sans que rien ne le signale.
+function messageResumeImport(donnees) {
+  const total = donnees.mobiliers.length + donnees.commerces.length;
+  const { geometrieInvalide, champsManquants, typeNonReconnu } = donnees.compteurs;
+  let message = `Import terminé : ${total} objet(s) pris en compte.`;
+  const anomalies = [];
+  if (geometrieInvalide) anomalies.push(`${geometrieInvalide} ignoré(s) (géométrie invalide)`);
+  if (champsManquants) anomalies.push(`${champsManquants} ignoré(s) (champs manquants ou corrompus)`);
+  if (typeNonReconnu) anomalies.push(`${typeNonReconnu} ignoré(s) (type de mobilier non reconnu)`);
+  if (anomalies.length) message += ' ' + anomalies.join(', ') + '.';
+  return message;
 }
 
 // --- Sauvegarde du fichier, adaptée à la plateforme (§6.5) ---
 
+// Retourne un statut ('fichier'|'partage'|'telechargement'|'annule') plutôt que
+// rien : les 3 mécanismes n'offrent pas le même niveau de confirmation, en
+// particulier le repli <a download> qui ne renvoie jamais d'échec/succès en
+// JavaScript (audit 2026-08-23, point 4) — exporterDonnees() adapte son message
+// en conséquence plutôt que d'affirmer un succès non garanti.
 async function sauvegarderFichier(nomFichier, donnees) {
   const blob = new Blob([donnees], { type: 'application/geopackage+sqlite3' });
 
@@ -170,9 +249,9 @@ async function sauvegarderFichier(nomFichier, donnees) {
       const writable = await handle.createWritable();
       await writable.write(blob);
       await writable.close();
-      return;
+      return 'fichier';
     } catch (e) {
-      if (e.name === 'AbortError') return;
+      if (e.name === 'AbortError') return 'annule';
       // Sinon on retente via le repli ci-dessous.
     }
   }
@@ -181,9 +260,9 @@ async function sauvegarderFichier(nomFichier, donnees) {
   if (navigator.canShare && navigator.canShare({ files: [fichierPartage] })) {
     try {
       await navigator.share({ files: [fichierPartage], title: nomFichier });
-      return;
+      return 'partage';
     } catch (e) {
-      if (e.name === 'AbortError') return;
+      if (e.name === 'AbortError') return 'annule';
     }
   }
 
@@ -195,15 +274,34 @@ async function sauvegarderFichier(nomFichier, donnees) {
   lien.click();
   document.body.removeChild(lien);
   URL.revokeObjectURL(url);
+  return 'telechargement';
 }
 
+let exportEnCours = false; // garde anti double-clic (audit 2026-08-23, point 8)
+
 async function exporterDonnees() {
+  if (exportEnCours) return;
+  exportEnCours = true;
+  const bouton = document.getElementById('bouton-exporter');
+  if (bouton) bouton.disabled = true;
+
   try {
     const buffer = await construireGpkg();
-    await sauvegarderFichier(nomFichierExport(getCodeAppareil(), new Date()), buffer);
+    const resultat = await sauvegarderFichier(nomFichierExport(getCodeAppareil(), new Date()), buffer);
+    if (resultat === 'fichier') {
+      alert('Export réussi — fichier enregistré.');
+    } else if (resultat === 'partage') {
+      alert('Fichier envoyé au partage — vérifiez qu\'il a bien été enregistré à l\'endroit choisi.');
+    } else if (resultat === 'telechargement') {
+      alert('Téléchargement lancé — vérifiez dans vos fichiers/téléchargements qu\'il a bien abouti (cette méthode ne permet pas de confirmer automatiquement le succès).');
+    }
+    // 'annule' : l'utilisateur a annulé volontairement, rien à afficher.
   } catch (erreur) {
     console.error('Échec de l\'export GPKG :', erreur);
     alert('Échec de l\'export — cette tentative n\'a pas produit de fichier. Réessayez.');
+  } finally {
+    exportEnCours = false;
+    if (bouton) bouton.disabled = false;
   }
 }
 
@@ -290,6 +388,7 @@ document.getElementById('bouton-import-fusionner').addEventListener('click', asy
   if (!donnees) return;
   try {
     await appliquerImport(donnees.mobiliers, donnees.commerces, 'fusionner');
+    alert(messageResumeImport(donnees));
   } catch (erreur) {
     console.error('Échec de la fusion à l\'import :', erreur);
     afficherBanniereErreur('Échec de la fusion des données importées — certains objets peuvent manquer. Vérifiez avant de continuer.');
@@ -302,6 +401,7 @@ document.getElementById('bouton-import-remplacer').addEventListener('click', asy
   if (!donnees) return;
   try {
     await appliquerImport(donnees.mobiliers, donnees.commerces, 'remplacer');
+    alert(messageResumeImport(donnees));
   } catch (erreur) {
     console.error('Échec du remplacement à l\'import :', erreur);
     afficherBanniereErreur('Échec du remplacement des données — l\'état local peut être incomplet. Vérifiez avant de continuer.');

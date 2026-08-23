@@ -165,3 +165,30 @@ Suite existante rejouée sans régression (66/66 OK).
 **⚠️ Non vérifiable dans cet environnement** : l'enregistrement effectif du service worker échoue systématiquement (« An unknown error occurred when fetching the script »), **y compris en tentant d'enregistrer `util.js`** (un fichier déjà validé, chargé sans problème comme script normal partout ailleurs dans l'app) à la place de `service-worker.js` — ce test croisé exclut un problème de code ou de contenu du fichier et pointe vers une restriction du bac à sable du navigateur automatisé de Claude, cohérente avec son incapacité déjà connue à produire des captures d'écran. L'enregistrement réel et l'apparition de l'invite d'installation restent à confirmer par l'utilisateur dans un vrai navigateur.
 
 **Suite complète : 67/67 tests OK** (27 logique pure + 40 parcours fonctionnels), rejouée deux fois de suite.
+
+## Hébergement GitHub Pages et cache hors-ligne réel (2026-08-23)
+
+Le service worker minimal (aucune mise en cache) est remplacé par une version qui met réellement l'app en cache (§4 des spécifications, revu) — nécessaire pour un usage hors-ligne réel sur le terrain, l'app étant maintenant hébergée sur GitHub Pages plutôt que sur un serveur local.
+
+**Vérifié via l'outil navigateur de Claude, sous la vraie adresse HTTPS** (`https://mmoreauprof-svg.github.io/mobilier-urbain/app/`) : le service worker s'enregistre et s'active avec succès (échec systématique observé précédemment sous serveur local — confirme que la cause de l'échec de l'étape 11 était l'absence de HTTPS, pas un problème de code) ; les 35 fichiers de l'app sont bien présents dans le cache après installation.
+
+**Non vérifiable dans l'outil de Claude** : rechargement complet de la page hors réseau (pas de bascule "hors-ligne" disponible dans l'outil) — logique du service worker vérifiée par lecture de code et par l'état du cache peuplé, confirmation finale en conditions réelles (mode avion) laissée à l'utilisateur.
+
+## Corrections de l'audit du 23/08 : pertes de données et échecs silencieux (2026-08-23)
+
+Audit du code élargi (import/export GPKG, filtres, PWA/service worker) ayant identifié 8 points, tous corrigés sauf le point 5 (cas rare, laissé de côté à la demande explicite de l'audit) :
+
+1. **Import — lignes ignorées sans compte-rendu** (`gpkg.js`, `lireCouche`) : géométrie non-point, champs obligatoires manquants/corrompus, `type_objet` non reconnu sont désormais comptés séparément et écartés plutôt qu'insérés tels quels. `messageResumeImport()` affiche le décompte après chaque import ("X objet(s) pris en compte, Y ignoré(s) [raison]").
+2. **Import — schéma non vérifié** : couvert par le même mécanisme (champs obligatoires par couche : `CHAMPS_MOBILIER_OBLIGATOIRES`/`CHAMPS_COMMERCE_OBLIGATOIRES`, `commentaire`/`nom_commerce`/`date_fermeture` restent optionnels).
+3. **Import — `type_objet` non reconnu → icône cassée et objet invisible des filtres** : validé contre `TYPES_MOBILIER_CONNUS` (dérivé de `COUCHES_MOBILIER`) à la lecture, rejeté sinon.
+4. **Export — succès non garanti sur le repli `<a download>`** : `sauvegarderFichier()` renvoie désormais lequel des 3 mécanismes a été utilisé (`fichier`/`partage`/`telechargement`) ; le message affiché est honnête selon le niveau de confiance réel (confirmation ferme pour File System Access API, incertaine et signalée comme telle pour le repli téléchargement, qui ne peut techniquement pas être vérifié en JavaScript). Vérifié manuellement dans l'environnement de Claude (dépourvu de `showSaveFilePicker`/partage utilisable sans geste utilisateur) : message "Téléchargement lancé — vérifiez..." bien affiché.
+5. *(non traité — cas rare selon l'audit, à surveiller seulement si un fichier `.gpkg` corrompu est un jour rapporté)*
+6. **Service worker — `cache.addAll()` tout ou rien et silencieux** : remplacé par une mise en cache fichier par fichier (`Promise.allSettled`), qui poursuit même si un fichier échoue et prévient les pages ouvertes (`postMessage`) plutôt que d'échouer intégralement sans le dire.
+7. **Échec d'enregistrement du service worker signalé seulement en console** : remonté aussi via `afficherBanniereErreur` (`app/js/pwa.js`), cohérent avec le filet déjà en place ailleurs dans l'app.
+8. **Pas de garde contre un double clic sur "Exporter"** : drapeau `exportEnCours` + désactivation du bouton pendant l'export.
+
+**Découverte pendant l'écriture des tests** (pas anticipée par l'audit) : `row.getValueWithColumnName()` de `geopackage-js` **lève une exception** pour une colonne réellement absente de la table, plutôt que de renvoyer `undefined` comme supposé — sans protection, cela aurait fait échouer la lecture de **toute** la couche (voire tout l'import) au lieu d'ignorer la seule ligne concernée. Corrigé par un `try/catch` autour de chaque accès de champ dans `lireCouche`, traité comme un champ manquant.
+
+**Points 6 et 7 vérifiés sans passer par une vraie installation de service worker** (limitation connue du bac à sable de Claude, cf. section précédente) : la logique de mise en cache résiliente et le déclenchement de la bannière ont été exercés directement (même algorithme, message `postMessage` simulé) — confirmés corrects. Vérification end-to end (vraie installation défaillante sur un vrai appareil) non faite, jugée superflue vu que le mécanisme lui-même est validé et que l'enregistrement réel du service worker est déjà confirmé fonctionnel par ailleurs (section précédente).
+
+7 nouveaux tests dans `test.html` (2 logique pure — `messageResumeImport` — + 5 fonctionnels). **Suite complète : 73/73 tests OK**, rejouée deux fois de suite.

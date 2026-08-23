@@ -14,7 +14,7 @@
 // en cache (même symptôme que le cache HTTP du navigateur, déjà rencontré plusieurs
 // fois en développement).
 
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CACHE_APP = `mobilier-urbain-app-${VERSION}`;
 const CACHE_TUILES = 'mobilier-urbain-tuiles';
 
@@ -56,10 +56,24 @@ const FICHIERS_APP = [
   'icons/commerce-vacant.svg',
 ];
 
+// cache.addAll() est tout ou rien : un seul fichier en échec (404, coupure
+// réseau pendant l'installation) faisait échouer toute la mise en cache sans
+// que rien ne le signale (audit 2026-08-23, point 6) — l'app se croyait
+// installée avec un cache vide ou incomplet. On met en cache fichier par
+// fichier et on prévient les pages ouvertes en cas d'échec partiel.
 self.addEventListener('install', (evenement) => {
-  evenement.waitUntil(
-    caches.open(CACHE_APP).then((cache) => cache.addAll(FICHIERS_APP))
-  );
+  evenement.waitUntil((async () => {
+    const cache = await caches.open(CACHE_APP);
+    const resultats = await Promise.allSettled(FICHIERS_APP.map((url) => cache.add(url)));
+    const manquants = resultats
+      .map((r, i) => (r.status === 'rejected' ? FICHIERS_APP[i] : null))
+      .filter(Boolean);
+    if (manquants.length) {
+      console.warn('Mise en cache incomplète à l\'installation :', manquants);
+      const clients = await self.clients.matchAll({ includeUncontrolled: true, type: 'window' });
+      clients.forEach((client) => client.postMessage({ type: 'cache-incomplet', manquants }));
+    }
+  })());
   self.skipWaiting();
 });
 

@@ -3,6 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <title>Tests automatisés</title>
+  <!-- style.css est chargée dynamiquement plus bas (anti-cache), pour pouvoir
+       vérifier les règles de positionnement critiques (ex. la bannière
+       d'erreur ne doit pas recouvrir les contrôles du coin supérieur gauche)
+       — un bug de ce type (§ audit 2026-08-23) était invisible aux 67 tests
+       précédents faute de charger ce fichier ici. -->
   <style>
     body { font-family: monospace; padding: 16px; white-space: pre-wrap; }
     #harnais { position: absolute; left: -9999px; top: -9999px; width: 1px; height: 1px; overflow: hidden; }
@@ -20,7 +25,7 @@
 
     <div id="banniere-selection" hidden></div>
 
-    <div id="banniere-erreur" hidden>
+    <div id="banniere-erreur" class="banniere-erreur" hidden>
       <span id="banniere-erreur-texte"></span>
       <button id="banniere-erreur-fermer">×</button>
     </div>
@@ -147,8 +152,20 @@
       });
     }
 
+    function chargerFeuilleDeStyle(href) {
+      return new Promise((resolve, reject) => {
+        const lien = document.createElement('link');
+        lien.rel = 'stylesheet';
+        lien.href = href;
+        lien.onload = resolve;
+        lien.onerror = () => reject(new Error('Échec de chargement : ' + href));
+        document.head.appendChild(lien);
+      });
+    }
+
     async function chargerFichiersApp() {
       const antiCache = '?t=' + Date.now();
+      await chargerFeuilleDeStyle('../css/style.css' + antiCache);
       const fichiers = ['util.js', 'map.js', 'position.js', 'device.js', 'geo.js', 'icones.js', 'storage.js', 'filtres.js', 'interface.js', 'mobilier.js', 'commerce.js', 'gpkg.js', 'pwa.js'];
       for (const fichier of fichiers) {
         await chargerScript('../js/' + fichier + antiCache);
@@ -338,6 +355,27 @@
         && iconeCommerce('Vacant').options.iconUrl === 'icons/commerce-vacant.svg'
       );
 
+      // --- style.css : la bannière d'erreur ne doit pas recouvrir les
+      // contrôles du coin supérieur gauche (zoom Leaflet ≈ 75px de haut,
+      // barre d'outils PC, icône filtre mobile) — sinon ces contrôles
+      // deviennent silencieusement inutilisables tant qu'une bannière est
+      // affichée (ex. « Position GPS indisponible », très fréquent).
+      // Régression trouvée lors de l'audit du 2026-08-23 : ce test aurait dû
+      // exister depuis le départ mais 'style.css' n'était pas chargé ici.
+      verifier(
+        'la bannière d\'erreur est décalée sous les contrôles du coin supérieur gauche',
+        (() => {
+          // display:none (dû à [hidden]) fait renvoyer 'auto' par getComputedStyle :
+          // il faut momentanément l'afficher pour lire la vraie position appliquée.
+          const banniere = document.getElementById('banniere-erreur');
+          const etaitCachee = banniere.hidden;
+          banniere.hidden = false;
+          const top = parseFloat(getComputedStyle(banniere).top);
+          banniere.hidden = etaitCachee;
+          return top >= 75;
+        })()
+      );
+
       // --- Badge de quantité sur iconeMobilier (app/js/icones.js) ---
       verifier(
         'iconeMobilier sans nombre (ou nombre=1) reste une icône simple, sans badge',
@@ -384,6 +422,26 @@
       verifier(
         'nomFichierExport gère un code appareil manquant sans planter',
         nomFichierExport(null, new Date('2026-08-22T10:00:00.000Z')) === 'mobilier_urbain_XXX_2026-08-22.gpkg'
+      );
+
+      // --- messageResumeImport (app/js/gpkg.js) : audit 2026-08-23, point 1 ---
+      verifier(
+        'messageResumeImport détaille chaque catégorie d\'anomalie présente',
+        (() => {
+          const message = messageResumeImport({
+            mobiliers: [{}, {}], commerces: [{}],
+            compteurs: { geometrieInvalide: 2, champsManquants: 1, typeNonReconnu: 0 }
+          });
+          return message.includes('3 objet(s)')
+            && message.includes('2 ignoré(s) (géométrie invalide)')
+            && message.includes('1 ignoré(s) (champs manquants ou corrompus)')
+            && !message.includes('type de mobilier non reconnu');
+        })()
+      );
+      verifier(
+        'messageResumeImport reste sobre quand il n\'y a aucune anomalie',
+        messageResumeImport({ mobiliers: [{}], commerces: [], compteurs: { geometrieInvalide: 0, champsManquants: 0, typeNonReconnu: 0 } })
+          === 'Import terminé : 1 objet(s) pris en compte.'
       );
 
       // --- estAffichagePC / positionnerPanneauFormulaire (app/js/interface.js) ---
@@ -1067,6 +1125,86 @@
         const fichierInvalide = new File(['ceci n\'est pas un gpkg'], 'invalide.gpkg');
         await declencherImport(fichierInvalide);
         return alertesCapturees.length > 0 && derniereAlerte().includes('illisible');
+      });
+
+      // --- Audit 2026-08-23 : pertes de données silencieuses à l'import (points 1, 2, 3) ---
+      await verifierAsync('gpkg : lireCouche compte et écarte géométrie invalide, champs manquants et type non reconnu', async () => {
+        const gpTemp = await window.GeoPackage.GeoPackageAPI.create();
+        creerCouche(gpTemp, 'banc', CHAMPS_MOBILIER_TYPES, 'Bancs');
+
+        // Ligne valide.
+        insererLigne(gpTemp, 'banc', { uid: 'AUD-1', type_objet: 'Banc', etat: 'Bon', nombre: 1, commentaire: '', last_update: '2026-08-23T00:00:00.000Z' }, 2.16, 48.80);
+
+        // Géométrie invalide (nulle) : même mécanisme d'insertion bas niveau qu'insererLigne, mais $geometry: null.
+        gpTemp.connection.insert(
+          'insert into "banc" ("id","geometry","uid","type_objet","etat","nombre","commentaire","last_update") values ($id,$geometry,$uid,$type_objet,$etat,$nombre,$commentaire,$last_update)',
+          { $id: null, $geometry: null, $uid: 'AUD-2', $type_objet: 'Banc', $etat: 'Bon', $nombre: 1, $commentaire: '', $last_update: '2026-08-23T00:00:00.000Z' }
+        );
+
+        // type_objet non reconnu (ex. faute de frappe faite dans QGIS).
+        insererLigne(gpTemp, 'banc', { uid: 'AUD-3', type_objet: 'Muret', etat: 'Bon', nombre: 1, commentaire: '', last_update: '2026-08-23T00:00:00.000Z' }, 2.16, 48.80);
+
+        // Champs manquants : table réimportée avec une colonne en moins (simule un schéma réédité dans QGIS).
+        creerCouche(gpTemp, 'banc_sans_etat', CHAMPS_MOBILIER_TYPES.filter((t) => t.name !== 'etat'), 'x');
+        insererLigne(gpTemp, 'banc_sans_etat', { uid: 'AUD-4', type_objet: 'Banc', nombre: 1, commentaire: '', last_update: '2026-08-23T00:00:00.000Z' }, 2.16, 48.80);
+
+        const resultatBanc = lireCouche(gpTemp, 'banc', CHAMPS_MOBILIER, CHAMPS_MOBILIER_OBLIGATOIRES, 'type_objet', TYPES_MOBILIER_CONNUS);
+        const resultatSansEtat = lireCouche(gpTemp, 'banc_sans_etat', CHAMPS_MOBILIER, CHAMPS_MOBILIER_OBLIGATOIRES, 'type_objet', TYPES_MOBILIER_CONNUS);
+        gpTemp.close();
+
+        return resultatBanc.objets.length === 1 && resultatBanc.objets[0].uid === 'AUD-1'
+          && resultatBanc.compteurs.geometrieInvalide === 1
+          && resultatBanc.compteurs.typeNonReconnu === 1
+          && resultatSansEtat.objets.length === 0
+          && resultatSansEtat.compteurs.champsManquants === 1;
+      });
+
+      await verifierAsync('gpkg : un import réel avec anomalies mélangées affiche le décompte dans le message de confirmation', async () => {
+        const gpTemp = await window.GeoPackage.GeoPackageAPI.create();
+        creerCouche(gpTemp, 'banc', CHAMPS_MOBILIER_TYPES, 'Bancs');
+        creerCouche(gpTemp, 'corbeille', CHAMPS_MOBILIER_TYPES, 'Corbeilles');
+        creerCouche(gpTemp, 'distributeur_sacs', CHAMPS_MOBILIER_TYPES, 'Distributeurs de sacs');
+        creerCouche(gpTemp, 'arret_bus', CHAMPS_MOBILIER_TYPES, 'Arrêts de bus');
+        creerCouche(gpTemp, 'abri_bus', CHAMPS_MOBILIER_TYPES, 'Abris bus');
+        creerCouche(gpTemp, 'commerce', CHAMPS_COMMERCE_TYPES, 'Commerces');
+        insererLigne(gpTemp, 'banc', { uid: 'AUD-5', type_objet: 'Banc', etat: 'Bon', nombre: 1, commentaire: '', last_update: '2026-08-23T00:00:00.000Z' }, 2.16, 48.80);
+        insererLigne(gpTemp, 'banc', { uid: 'AUD-6', type_objet: 'Portail', etat: 'Bon', nombre: 1, commentaire: '', last_update: '2026-08-23T00:00:00.000Z' }, 2.16, 48.80);
+        const buffer = await gpTemp.export();
+        gpTemp.close();
+
+        const gp = await window.GeoPackage.GeoPackageAPI.open(new Uint8Array(buffer));
+        gpkgEnAttenteImport = lireGpkg(gp);
+        gp.close();
+        alertesCapturees.length = 0;
+        document.getElementById('bouton-import-fusionner').click();
+        await attendre(100);
+
+        return derniereAlerte().includes('1 objet(s) pris en compte')
+          && derniereAlerte().includes('1 ignoré(s) (type de mobilier non reconnu)');
+      });
+
+      // --- Audit 2026-08-23, point 8 : garde anti double-clic sur l'export ---
+      // construireGpkg ET sauvegarderFichier sont substitués pour ce test : seule la
+      // garde de concurrence est visée, pas le mécanisme réel d'enregistrement (déjà
+      // couvert manuellement, cf. Tests-Automatises.md — showSaveFilePicker/partage
+      // nécessitent un vrai geste utilisateur, absents ici).
+      await verifierAsync('gpkg : un second clic sur Exporter pendant un export en cours est sans effet', async () => {
+        const construireOriginal = construireGpkg;
+        const sauvegarderOriginal = sauvegarderFichier;
+        let appelsConstruire = 0;
+        construireGpkg = async () => { appelsConstruire++; await attendre(50); return new ArrayBuffer(0); };
+        sauvegarderFichier = async () => 'telechargement';
+        try {
+          const bouton = document.getElementById('bouton-exporter');
+          const premierAppel = exporterDonnees();
+          const boutonDesactivePendant = bouton.disabled === true;
+          await exporterDonnees(); // second "clic" pendant que le premier export est en cours
+          await premierAppel;
+          return boutonDesactivePendant && appelsConstruire === 1 && bouton.disabled === false;
+        } finally {
+          construireGpkg = construireOriginal;
+          sauvegarderFichier = sauvegarderOriginal;
+        }
       });
 
       // --- Installabilité PWA (§11) : manifest.json ---
