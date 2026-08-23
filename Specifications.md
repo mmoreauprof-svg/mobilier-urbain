@@ -147,7 +147,8 @@ Sans GPS fiable (PC de développement, ou signal faible en intérieur), la créa
 
 3. **Import d'un fichier externe** — bouton dédié → sélection d'un fichier `.gpkg` (reçu de l'autre téléphone, ou réédité depuis QGIS) → l'app propose un choix explicite :
    - **Remplacer** : le contenu importé remplace entièrement les données locales.
-   - **Fusionner** : les objets du fichier importé sont ajoutés à la base locale ; tout objet dont le `uid` existe déjà localement est ignoré (pas de mise à jour automatique, pas de résolution de conflit — géré manuellement dans QGIS si besoin, cf. §6.1bis).
+   - **Fusionner** ✅ (revu le 23/08 suite à un usage réel sur le terrain) : un objet dont le `uid` n'existe pas encore localement est ajouté. Un objet dont le `uid` existe déjà localement est **remplacé par la version importée si celle-ci a un `last_update` strictement plus récent** (modification faite sur l'autre appareil après la dernière synchronisation) ; sinon il est ignoré, comme avant. Un message de confirmation détaille le nombre d'objets ajoutés / mis à jour / ignorés.
+   - ⚠️ **Suppression non gérée par la fusion** : un objet supprimé sur un appareil n'est jamais retiré des autres lors d'une fusion (l'import n'ajoute/ne met à jour que ce qui est présent dans le fichier — il ne peut pas savoir qu'une absence signifie une suppression). Convention adoptée en attendant mieux : marquer l'objet à retirer par un commentaire "A SUPPRIMER" plutôt que le supprimer directement, puis traiter manuellement dans QGIS lors de la fusion finale des exports des deux appareils.
    - Ces deux opérations parcourent **les 6 couches du fichier importé**, mais reconsolident toujours vers les **2 bases locales** (`mobilier_urbain`, `commerce`, cf. §6.5bis) — la séparation en couches n'existe que dans le fichier `.gpkg`, jamais dans le stockage local du téléphone.
 
 ### 6.5bis Structure des couches GPKG ✅

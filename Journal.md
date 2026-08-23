@@ -79,4 +79,5 @@
 2026-08-23 - Développement - Ajustement couleurs icônes suite retour utilisateur : banc vert foncé, distributeur de sacs marron, arrêt de bus bleu clair, commerce occupé vert clair. 90/90 tests OK.
 2026-08-23 - Développement - Focus auto + mémorisation du dernier type (PC uniquement) sur les panneaux mobilier/commerce : Entrée seule suffit désormais pour enchaîner plusieurs créations du même type, sans impact mobile. 93/93 tests OK.
 2026-08-23 - Développement - Correction du focus PC : le bouton Enregistrer (pas la liste Type) reçoit le focus à l'ouverture, la liste rouvrant sa liste à Entrée sur certains navigateurs. 93/93 tests OK.
+2026-08-23 - Développement - Fusion GPKG améliorée : un objet existant est mis à jour si l'importé a un last_update plus récent (au lieu d'être toujours ignoré), message détaillant ajoutés/mis à jour/ignorés. Suppression hors périmètre (convention A SUPPRIMER). 95/95 tests OK.
 

@@ -218,7 +218,7 @@ function lireGpkg(gp) {
 // Message de confirmation d'import (audit 2026-08-23, point 1) : jusqu'ici
 // l'import ne rendait aucun compte, un import "réussi" pouvait avoir perdu des
 // objets sans que rien ne le signale.
-function messageResumeImport(donnees) {
+function messageResumeImport(donnees, resultatFusion) {
   const total = donnees.mobiliers.length + donnees.commerces.length;
   const { geometrieInvalide, champsManquants, typeNonReconnu } = donnees.compteurs;
   let message = `Import terminé : ${total} objet(s) pris en compte.`;
@@ -227,6 +227,11 @@ function messageResumeImport(donnees) {
   if (champsManquants) anomalies.push(`${champsManquants} ignoré(s) (champs manquants ou corrompus)`);
   if (typeNonReconnu) anomalies.push(`${typeNonReconnu} ignoré(s) (type de mobilier non reconnu)`);
   if (anomalies.length) message += ' ' + anomalies.join(', ') + '.';
+  // Détail de la fusion (§6.5, revu le 23/08) : absent pour "remplacer", qui
+  // n'a pas cette notion d'ajout/mise à jour/ignoré (tout est remplacé).
+  if (resultatFusion) {
+    message += ` Détail fusion : ${resultatFusion.ajoutes} ajouté(s), ${resultatFusion.misAJour} mis à jour, ${resultatFusion.ignores} ignoré(s) (version locale déjà à jour ou plus récente).`;
+  }
   return message;
 }
 
@@ -330,20 +335,45 @@ async function appliquerImport(mobiliers, commerces, mode) {
     return;
   }
 
-  // Fusionner : tout objet dont le uid existe déjà localement est ignoré (§6.5).
-  const uidsMobilierExistants = new Set((await listerMobilierUrbain()).map((o) => o.uid));
-  const uidsCommerceExistants = new Set((await listerCommerces()).map((o) => o.uid));
+  // Fusionner (revu le 23/08) : un uid nouveau est ajouté ; un uid déjà connu
+  // localement n'est remplacé que si l'objet importé a un last_update
+  // strictement plus récent (modification faite sur l'autre appareil après la
+  // dernière synchro) — sinon ignoré comme avant. La suppression reste hors
+  // périmètre (convention "à traiter manuellement", cf. commentaire) : un
+  // objet supprimé ailleurs n'est jamais retiré par une fusion.
+  const mobiliersExistants = new Map((await listerMobilierUrbain()).map((o) => [o.uid, o]));
+  const commercesExistants = new Map((await listerCommerces()).map((o) => [o.uid, o]));
+  const resultat = { ajoutes: 0, misAJour: 0, ignores: 0 };
 
   for (const objet of mobiliers) {
-    if (uidsMobilierExistants.has(objet.uid)) continue;
-    await enregistrerMobilierUrbain(objet);
-    afficherMarqueurMobilier(objet);
+    const existant = mobiliersExistants.get(objet.uid);
+    if (!existant) {
+      await enregistrerMobilierUrbain(objet);
+      afficherMarqueurMobilier(objet);
+      resultat.ajoutes++;
+    } else if (new Date(objet.last_update) > new Date(existant.last_update)) {
+      await enregistrerMobilierUrbain(objet);
+      mettreAJourMarqueurMobilier(objet);
+      resultat.misAJour++;
+    } else {
+      resultat.ignores++;
+    }
   }
   for (const objet of commerces) {
-    if (uidsCommerceExistants.has(objet.uid)) continue;
-    await enregistrerCommerce(objet);
-    afficherMarqueurCommerce(objet);
+    const existant = commercesExistants.get(objet.uid);
+    if (!existant) {
+      await enregistrerCommerce(objet);
+      afficherMarqueurCommerce(objet);
+      resultat.ajoutes++;
+    } else if (new Date(objet.last_update) > new Date(existant.last_update)) {
+      await enregistrerCommerce(objet);
+      mettreAJourMarqueurCommerce(objet);
+      resultat.misAJour++;
+    } else {
+      resultat.ignores++;
+    }
   }
+  return resultat;
 }
 
 let gpkgEnAttenteImport = null;
@@ -387,8 +417,8 @@ document.getElementById('bouton-import-fusionner').addEventListener('click', asy
   fermerChoixImport();
   if (!donnees) return;
   try {
-    await appliquerImport(donnees.mobiliers, donnees.commerces, 'fusionner');
-    alert(messageResumeImport(donnees));
+    const resultatFusion = await appliquerImport(donnees.mobiliers, donnees.commerces, 'fusionner');
+    alert(messageResumeImport(donnees, resultatFusion));
   } catch (erreur) {
     console.error('Échec de la fusion à l\'import :', erreur);
     afficherBanniereErreur('Échec de la fusion des données importées — certains objets peuvent manquer. Vérifiez avant de continuer.');

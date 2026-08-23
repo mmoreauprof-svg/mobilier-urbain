@@ -1236,6 +1236,53 @@
           && !!mobilierMarkers['TST-G3'];
       });
 
+      // --- Demande du 23/08 : la fusion met à jour un objet existant si la
+      // version importée est plus récente (jusqu'ici toujours ignorée) ---
+      await verifierAsync('gpkg : import "fusionner" met à jour un objet existant si la version importée est plus récente (last_update)', async () => {
+        const ancien = { uid: 'TST-MAJ-1', type_objet: 'Banc', etat: 'Bon', nombre: 1, commentaire: 'Ancien', last_update: '2020-01-01T00:00:00.000Z', lat: 48.83, lon: 2.19 };
+        await enregistrerMobilierUrbain(ancien);
+        afficherMarqueurMobilier(ancien);
+
+        const gpTemp = await window.GeoPackage.GeoPackageAPI.create();
+        creerCouche(gpTemp, 'banc', CHAMPS_MOBILIER_TYPES, 'Bancs');
+        insererLigne(gpTemp, 'banc', { uid: 'TST-MAJ-1', type_objet: 'Banc', etat: 'HS', nombre: 2, commentaire: 'Modifié ailleurs', last_update: '2026-08-24T00:00:00.000Z' }, 2.19, 48.83);
+        const buffer = await gpTemp.export();
+        gpTemp.close();
+
+        const gp = await window.GeoPackage.GeoPackageAPI.open(new Uint8Array(buffer));
+        gpkgEnAttenteImport = lireGpkg(gp);
+        gp.close();
+        alertesCapturees.length = 0;
+        document.getElementById('bouton-import-fusionner').click();
+        await attendre(100);
+
+        const objet = (await listerMobilierUrbain()).find((o) => o.uid === 'TST-MAJ-1');
+        return objet.etat === 'HS' && objet.commentaire === 'Modifié ailleurs' && objet.nombre === 2
+          && derniereAlerte().includes('1 mis à jour');
+      });
+      await verifierAsync('gpkg : import "fusionner" n\'écrase pas un objet existant si la version importée est plus ancienne ou identique', async () => {
+        const recent = { uid: 'TST-MAJ-2', type_objet: 'Banc', etat: 'Bon', nombre: 1, commentaire: 'Récent', last_update: '2026-08-24T00:00:00.000Z', lat: 48.84, lon: 2.20 };
+        await enregistrerMobilierUrbain(recent);
+        afficherMarqueurMobilier(recent);
+
+        const gpTemp = await window.GeoPackage.GeoPackageAPI.create();
+        creerCouche(gpTemp, 'banc', CHAMPS_MOBILIER_TYPES, 'Bancs');
+        insererLigne(gpTemp, 'banc', { uid: 'TST-MAJ-2', type_objet: 'Banc', etat: 'HS', nombre: 9, commentaire: 'Plus ancien', last_update: '2020-01-01T00:00:00.000Z' }, 2.20, 48.84);
+        const buffer = await gpTemp.export();
+        gpTemp.close();
+
+        const gp = await window.GeoPackage.GeoPackageAPI.open(new Uint8Array(buffer));
+        gpkgEnAttenteImport = lireGpkg(gp);
+        gp.close();
+        alertesCapturees.length = 0;
+        document.getElementById('bouton-import-fusionner').click();
+        await attendre(100);
+
+        const objet = (await listerMobilierUrbain()).find((o) => o.uid === 'TST-MAJ-2');
+        return objet.etat === 'Bon' && objet.commentaire === 'Récent' && objet.nombre === 1
+          && derniereAlerte().includes('1 ignoré(s) (version locale');
+      });
+
       await verifierAsync('gpkg : import "remplacer" vide la base locale et les marqueurs avant de charger le nouveau contenu', async () => {
         const gpTemp = await window.GeoPackage.GeoPackageAPI.create();
         creerCouche(gpTemp, 'banc', CHAMPS_MOBILIER_TYPES, 'Bancs');
