@@ -170,6 +170,10 @@
       for (const fichier of fichiers) {
         await chargerScript('../js/' + fichier + antiCache);
       }
+      // Chargé comme script normal (pas comme un vrai service worker) uniquement pour
+      // accéder à sa constante FICHIERS_APP — self.addEventListener(...) s'accroche
+      // sans risque à window (self === window ici), jamais déclenché dans ce harnais.
+      await chargerScript('../service-worker.js' + antiCache);
     }
 
     const resultats = [];
@@ -510,6 +514,29 @@
           && getCodeAppareil() === 'TST';
 
         return erreurAffichee && modalFerme;
+      });
+
+      // --- storage.js : cas de succès direct (audit du 23/08, point 3 — jusqu'ici
+      // testé seulement en creux via les scénarios d'échec) ---
+      await verifierAsync('storage.js : enregistrerDansStore / listerStore / supprimerDeStore / viderStore fonctionnent et renvoient le bon contenu', async () => {
+        await viderStore('mobilier_urbain');
+        const avantVide = (await listerStore('mobilier_urbain')).length === 0;
+
+        await enregistrerDansStore('mobilier_urbain', { uid: 'STO-1', type_objet: 'Banc', etat: 'Bon', nombre: 1, commentaire: '', last_update: '2026-08-23T00:00:00.000Z' });
+        await enregistrerDansStore('mobilier_urbain', { uid: 'STO-2', type_objet: 'Corbeille', etat: 'Bon', nombre: 1, commentaire: '', last_update: '2026-08-23T00:00:00.000Z' });
+        const apresAjouts = await listerStore('mobilier_urbain');
+        const contientLesDeux = apresAjouts.length === 2
+          && apresAjouts.some((o) => o.uid === 'STO-1')
+          && apresAjouts.some((o) => o.uid === 'STO-2');
+
+        await supprimerDeStore('mobilier_urbain', 'STO-1');
+        const apresSuppression = await listerStore('mobilier_urbain');
+        const suppressionOk = apresSuppression.length === 1 && apresSuppression[0].uid === 'STO-2';
+
+        await viderStore('mobilier_urbain');
+        const apresVidage = (await listerStore('mobilier_urbain')).length === 0;
+
+        return avantVide && contientLesDeux && suppressionOk && apresVidage;
       });
 
       // --- Protection XSS dans les popups (échappement du texte saisi) ---
@@ -1205,6 +1232,91 @@
           construireGpkg = construireOriginal;
           sauvegarderFichier = sauvegarderOriginal;
         }
+      });
+
+      // --- Analyse du 23/08 : round-trip export → import complet ---
+      await verifierAsync('gpkg : round-trip export→import préserve fidèlement tous les champs (5 types de mobilier + commerces avec/sans champs optionnels)', async () => {
+        await viderStore('mobilier_urbain');
+        await viderStore('commerce');
+
+        const maintenant = '2026-08-23T12:00:00.000Z';
+        const mobiliersSource = [
+          { uid: 'RT-1', type_objet: 'Banc', etat: 'Bon', nombre: 1, commentaire: 'Test', last_update: maintenant, lat: 48.8010, lon: 2.1610 },
+          { uid: 'RT-2', type_objet: 'Corbeille', etat: 'Moyen', nombre: 2, commentaire: '', last_update: maintenant, lat: 48.8020, lon: 2.1620 },
+          { uid: 'RT-3', type_objet: 'Distributeur de sacs', etat: 'Mauvais', nombre: 3, commentaire: 'Abîmé', last_update: maintenant, lat: 48.8030, lon: 2.1630 },
+          { uid: 'RT-4', type_objet: 'Arrêt de bus', etat: 'HS', nombre: 1, commentaire: '', last_update: maintenant, lat: 48.8040, lon: 2.1640 },
+          { uid: 'RT-5', type_objet: 'Abri bus', etat: 'Bon', nombre: 5, commentaire: 'Multiple', last_update: maintenant, lat: 48.8050, lon: 2.1650 }
+        ];
+        const commercesSource = [
+          { uid: 'RT-6', nom_commerce: 'Boulangerie Test', type_commerce: 'Boulangerie', etat: 'Occupé', date_fermeture: '', commentaire: 'RAS', last_update: maintenant, lat: 48.8060, lon: 2.1660 },
+          { uid: 'RT-7', nom_commerce: '', type_commerce: 'Autre commerce', etat: 'Vacant', date_fermeture: '2026-01', commentaire: '', last_update: maintenant, lat: 48.8070, lon: 2.1670 }
+        ];
+
+        for (const o of mobiliersSource) await enregistrerMobilierUrbain(o);
+        for (const o of commercesSource) await enregistrerCommerce(o);
+
+        const buffer = await construireGpkg();
+        const gp = await window.GeoPackage.GeoPackageAPI.open(new Uint8Array(buffer));
+        const releve = lireGpkg(gp);
+        gp.close();
+
+        const memeChamps = (source, relu, champs) => champs.every((c) => source[c] === relu[c]);
+        const memesCoordonnees = (source, relu) => Math.abs(source.lat - relu.lat) < 1e-9 && Math.abs(source.lon - relu.lon) < 1e-9;
+
+        const mobiliersOk = mobiliersSource.every((source) => {
+          const relu = releve.mobiliers.find((m) => m.uid === source.uid);
+          return !!relu && memeChamps(source, relu, CHAMPS_MOBILIER) && memesCoordonnees(source, relu);
+        });
+        const commercesOk = commercesSource.every((source) => {
+          const relu = releve.commerces.find((c) => c.uid === source.uid);
+          return !!relu && memeChamps(source, relu, CHAMPS_COMMERCE) && memesCoordonnees(source, relu);
+        });
+
+        return releve.mobiliers.length === mobiliersSource.length
+          && releve.commerces.length === commercesSource.length
+          && mobiliersOk && commercesOk
+          && releve.compteurs.geometrieInvalide === 0
+          && releve.compteurs.champsManquants === 0
+          && releve.compteurs.typeNonReconnu === 0;
+      });
+
+      // --- Analyse du 23/08 : la protection contre un import en double existe déjà
+      // structurellement (fermerChoixImport vide gpkgEnAttenteImport et cache le modal
+      // AVANT tout await), contrairement à Exporter avant sa correction — ce test
+      // vérifie cette protection existante plutôt que d'en ajouter une redondante. ---
+      await verifierAsync('gpkg : un second clic sur Fusionner après le premier est sans effet (protection déjà en place)', async () => {
+        const buffer = await construireGpkg();
+        const gp = await window.GeoPackage.GeoPackageAPI.open(new Uint8Array(buffer));
+        gpkgEnAttenteImport = lireGpkg(gp);
+        gp.close();
+
+        document.getElementById('bouton-import-fusionner').click();
+        const modalFermeeImmediatement = document.getElementById('modal-import-choix').hidden === true;
+        const donneesEffaceesImmediatement = gpkgEnAttenteImport === null;
+        document.getElementById('bouton-import-fusionner').click(); // second clic "trop tard"
+        await attendre(100);
+
+        return modalFermeeImmediatement && donneesEffaceesImmediatement;
+      });
+
+      // --- Analyse du 23/08, point 1 : chaque icône SVG référencée existe réellement
+      // (jusqu'ici seule l'URL calculée était vérifiée, pas le fichier lui-même) ---
+      await verifierAsync('icônes : tous les fichiers SVG référencés (mobilier + commerce) existent réellement', async () => {
+        const chemins = [...Object.values(FICHIERS_ICONE_MOBILIER), 'icons/commerce-occupe.svg', 'icons/commerce-vacant.svg'];
+        const resultats = await Promise.all(chemins.map((c) => fetch('../' + c).then((r) => r.ok).catch(() => false)));
+        return resultats.every(Boolean);
+      });
+
+      // --- Analyse du 23/08, point 1 : chaque fichier listé par le service worker
+      // existe réellement — détecte un renommage/suppression avant même une
+      // installation réelle, que ce harnais ne peut pas déclencher (contexte Service
+      // Worker global, différent de celui chargé ici). N'exerce pas install/activate/
+      // fetch eux-mêmes : chargés en tant que script normal, self.addEventListener(...)
+      // s'accroche sans risque à window (jamais déclenché ici), seule la constante
+      // FICHIERS_APP nous intéresse. ---
+      await verifierAsync('service worker : chaque fichier de FICHIERS_APP répond bien 200', async () => {
+        const resultats = await Promise.all(FICHIERS_APP.map((chemin) => fetch('../' + chemin).then((r) => r.ok).catch(() => false)));
+        return resultats.every(Boolean);
       });
 
       // --- Installabilité PWA (§11) : manifest.json ---
