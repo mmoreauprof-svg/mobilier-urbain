@@ -13,7 +13,7 @@ Le recensement des commerces vise en particulier à **identifier les locaux comm
 - Usage **à deux**, chacun sur son téléphone (un **Android** et un **iPhone**), en parallèle sur le terrain — pas de compte, pas de backend, pas de synchronisation automatique entre les deux téléphones.
 - La fusion des relevés des deux téléphones se fait **manuellement dans QGIS**, à partir des fichiers `.gpkg` exportés par chacun.
 - Pas de publication sur un store (Play Store / App Store).
-- Utilisation **en ligne** (connexion data/wifi active pendant la saisie sur le terrain).
+- Utilisation **hors-ligne pendant la saisie sur le terrain** ✅ (revu le 2026-08-23, cf. §4) : une connexion est nécessaire pour installer l'app et pour récupérer les mises à jour, mais pas pour l'utiliser une fois installée.
 
 ## 3. Architecture technique ✅
 
@@ -39,9 +39,34 @@ Deux téléphones saisissant en parallèle vont chacun générer des identifiant
 - **`compteur_local`** : entier auto-incrémenté séparément sur chaque téléphone — pas de coordination nécessaire entre les deux appareils.
 - Le `uid` est utilisé pour tout le dédoublonnage (import fusionné, avertissement de proximité). Le `fid` GPKG n'est là que pour satisfaire le format du fichier.
 
-## 4. Fonctionnement hors-ligne ✅ (revu)
+### 3ter. Installabilité PWA ✅ (étape 11)
 
-Le CdC initial demandait un fonctionnement hors-ligne complet. **Décision : abandonné.** Les tuiles OpenStreetMap nécessitent une connexion réseau pour s'afficher ; précharger la zone de Viroflay ajouterait une complexité non justifiée pour un usage solo. **L'application nécessite une connexion active pendant la saisie.**
+- **Manifest** (`app/manifest.json`) : nom, icônes, `display: "standalone"` (l'app s'ouvre sans barre d'adresse ni chrome navigateur, comme une app native), couleur de thème reprenant le bleu de l'app (`#1a73e8`).
+- **Icônes d'application** (générées, pas dessinées à la main comme les icônes de marqueurs) : punaise de localisation blanche sur fond bleu arrondi, cohérente avec le style des icônes de marqueurs. Générées en 4 tailles avec `Pillow` (`app/icons/app-icon-{32,180,192,512}.png`) : 192/512 pour le manifest (Android/Chrome), 180 pour `apple-touch-icon` (iOS, sans transparence — recommandation Apple), 32 pour l'onglet du navigateur.
+- **Service worker** (`app/service-worker.js`) — revu le 2026-08-23, met désormais réellement l'app en cache (cf. §4) : deux caches distincts, un pour les fichiers de l'app (préchargés à l'installation, servis "cache d'abord") et un pour les tuiles de carte (mises en cache au fur et à mesure, "réseau d'abord, secours sur le cache"). Une constante `VERSION` en tête de fichier doit être incrémentée à chaque mise à jour publiée, pour que les appareils déjà installés basculent sur les nouveaux fichiers au lieu de resservir une ancienne version en cache (même mécanisme que le problème de cache HTTP déjà rencontré plusieurs fois côté développement, cf. `Procédures Test.md`).
+- Balises meta iOS (`apple-mobile-web-app-capable`, etc.) pour un rendu correct en plein écran une fois ajouté à l'écran d'accueil.
+
+**Vérification** : hébergement GitHub Pages confirmé fonctionnel côté Claude (chargement de tous les fichiers en HTTPS, sans erreur). L'enregistrement effectif du service worker et le comportement hors-ligne réel restent à confirmer par l'utilisateur dans un vrai navigateur/téléphone — l'environnement de navigateur automatisé de Claude a déjà montré des limitations sur ce point précis par le passé (incapacité déjà connue à produire des captures d'écran ; échec d'enregistrement d'un service worker observé lors d'un test antérieur sous serveur local, non reproduit depuis sous HTTPS réel).
+
+### 3quater. Hébergement et mise à jour ✅ (2026-08-23)
+
+**Problème identifié** : l'architecture initiale servait l'app depuis un serveur local tournant sur le PC (`python -m http.server`), accessible aux téléphones uniquement via le Wi-Fi domestique. Incompatible avec l'usage réel (parcourir les rues de Viroflay, loin du PC). De plus, l'enregistrement d'un service worker (nécessaire pour l'installation et le cache hors-ligne) exige une connexion **HTTPS**, qu'un serveur local ne fournit pas.
+
+**Décision** : hébergement du code sur **GitHub Pages**, gratuit, sans nouveau compte à créer (compte GitHub `mmoreauprof-svg` créé pour l'occasion). Dépôt public — sans conséquence puisque seul le *code* de l'app y est publié, jamais les données de relevé (qui restent uniquement dans le stockage local de chaque téléphone et les fichiers `.gpkg` exportés).
+
+- **Adresse de l'app** : `https://mmoreauprof-svg.github.io/mobilier-urbain/app/`
+- **Dépôt Git local inchangé** : GitHub n'est qu'une deuxième copie (un "remote") du dépôt local existant. Le développement continue de se faire localement (avec Claude), test via le serveur local `python -m http.server` comme avant.
+- **Mise à jour** : une fois une nouvelle version testée et commitée localement, `git push` la publie sur GitHub Pages. Les appareils déjà installés reçoivent la mise à jour à leur prochaine connexion (le service worker vérifie automatiquement si une nouvelle version est disponible, cf. §3ter).
+- Cette adresse remplace l'ancienne procédure d'installation par IP locale dans `Procédures Test.md`.
+
+## 4. Fonctionnement hors-ligne ✅ (revu le 2026-08-23)
+
+Le CdC initial demandait un fonctionnement hors-ligne complet. Une première décision (2026-08-09) l'avait écarté par simplicité — **revue depuis**, car incompatible avec l'usage réel de l'app (relever le mobilier urbain en marchant dans les rues, sans connexion garantie).
+
+**Décision actuelle** : hors-ligne réel une fois l'app installée, via le service worker (§3ter) :
+- **Fichiers de l'app** (HTML/CSS/JS, librairies, icônes) : préchargés en cache dès l'installation — l'app se lance et fonctionne entièrement hors-ligne (saisie, modification, suppression, export/import GPKG), une connexion n'étant nécessaire que pour l'installation initiale et les mises à jour.
+- **Tuiles de la carte OpenStreetMap** : mises en cache progressivement, à chaque zone consultée en ligne. Une zone jamais affichée en ligne au préalable reste vide hors-ligne (aucune tentative de précharger toute la ville par avance, jugé disproportionné). **Recommandation pratique** : avant une session de terrain, ouvrir l'app une fois chez soi (Wi-Fi) et parcourir/zoomer sur les rues à visiter, pour que leurs tuiles soient en cache.
+- La position GPS (`watchPosition`) fonctionne nativement hors-ligne (ne dépend pas du réseau).
 
 ## 5. Système de coordonnées ✅ (revu)
 
@@ -188,4 +213,4 @@ Une fois les points ouverts tranchés : structure de dossiers, dépôt Git local
 8. ✅ Sélection manuelle d'un point sur la carte (repli sans GPS, cf. §6.4bis)
 9. ✅ Export GPKG (6 couches : 5 pour le mobilier urbain par type, 1 pour les commerces — cf. §6.5bis)
 10. ✅ Import GPKG (remplacer / fusionner, consolidation des 6 couches vers les 2 bases locales — cf. §6.5bis)
-11. Installabilité PWA (manifest, icône d'app, écran d'accueil)
+11. ✅ Installabilité PWA (manifest, icône d'app, écran d'accueil)

@@ -153,3 +153,15 @@ Nouveau retour après re-test : boutons "Supprimer/Annuler/Enregistrer" bien tro
 **Position de la barre d'outils PC** : déplacée à droite du contrôle de zoom (`top: 10px; left: 54px`) plutôt qu'en dessous, sur demande explicite de l'utilisateur (garder la logique "barre en haut"). Revérifié sans chevauchement avec le zoom, y compris à 780px de large (juste au-dessus du seuil desktop).
 
 Suite existante rejouée sans régression (66/66 OK).
+
+## Installabilité PWA (2026-08-22)
+
+Étape 11 (§3ter) : manifest, icônes d'application (générées avec Pillow), service worker minimal sans mise en cache (l'app nécessite une connexion active par conception, §4).
+
+1 nouveau test fonctionnel : `manifest.json` est valide et contient les champs requis (nom, `display: standalone`, icônes 192×192 et 512×512).
+
+**Vérifications manuelles complémentaires** sur l'app réelle : fichier manifest récupérable et bien structuré, les 4 icônes (`32/180/192/512`) chargent avec les bonnes dimensions, balises `<link rel="manifest">` et `<link rel="apple-touch-icon">` présentes dans le HTML.
+
+**⚠️ Non vérifiable dans cet environnement** : l'enregistrement effectif du service worker échoue systématiquement (« An unknown error occurred when fetching the script »), **y compris en tentant d'enregistrer `util.js`** (un fichier déjà validé, chargé sans problème comme script normal partout ailleurs dans l'app) à la place de `service-worker.js` — ce test croisé exclut un problème de code ou de contenu du fichier et pointe vers une restriction du bac à sable du navigateur automatisé de Claude, cohérente avec son incapacité déjà connue à produire des captures d'écran. L'enregistrement réel et l'apparition de l'invite d'installation restent à confirmer par l'utilisateur dans un vrai navigateur.
+
+**Suite complète : 67/67 tests OK** (27 logique pure + 40 parcours fonctionnels), rejouée deux fois de suite.

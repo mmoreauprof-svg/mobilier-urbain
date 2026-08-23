@@ -2,9 +2,26 @@
 
 ## Sur PC
 
-### Lancer l'application
+Deux façons d'utiliser l'app, selon le contexte — l'usage normal (§ ci-dessous) et le test de développement avec Claude (§ suivante) :
 
-**Lancement via fenêtre de commande (cmd)**
+### Usage normal (sans Claude)
+
+L'app est hébergée en ligne (GitHub Pages, cf. Specifications.md §3quater) à cette adresse fixe :
+
+```
+https://mmoreauprof-svg.github.io/mobilier-urbain/app/
+```
+
+1. Ouvrir cette adresse dans Chrome ou Edge.
+2. **Installer l'app (optionnel)** — pour une fenêtre dédiée avec icône, sans barre d'adresse, comme une application classique :
+   - Chercher une petite icône d'installation dans la barre d'adresse, à droite de l'URL (un écran avec une flèche, ou un `+` dans un rond).
+   - Si elle n'apparaît pas : menu `⋮` (trois points, en haut à droite) → **Installer Mobilier Urbain...** (Chrome) ou **Applications → Installer ce site en tant qu'application** (Edge).
+   - Confirmer. Une icône apparaît sur le Bureau / dans le menu Démarrer.
+3. Une fois l'app chargée une première fois (avec connexion), elle reste utilisable **hors connexion** ensuite (cf. Specifications.md §4) — installée ou simplement ouverte en onglet, peu importe. Une connexion n'est nécessaire que pour charger l'app la toute première fois et pour récupérer les mises à jour publiées ensuite.
+
+### Test de développement (avec Claude)
+
+Pendant une session de travail sur le code avec Claude, on continue à tester en local plutôt que de publier chaque changement :
 
 1. Ouvrir une fenêtre `cmd` (touche Windows → taper `cmd` → Entrée).
 2. Se placer dans le dossier de l'application :
@@ -76,13 +93,24 @@ Fermer la fenêtre `cmd` du serveur local, ou `Ctrl+C` dans cette fenêtre puis 
 
 ## Sous Android
 
+Plus besoin d'être sur le même Wi-Fi que le PC ni de passer par son adresse IP : l'app est hébergée en ligne (GitHub Pages), accessible depuis n'importe quelle connexion (Wi-Fi ou données mobiles).
+
+```
+https://mmoreauprof-svg.github.io/mobilier-urbain/app/
+```
+
 ### Installer l'application
 
-[A décrire]
+1. Sur le téléphone, ouvrir **Chrome** et aller à l'adresse ci-dessus.
+2. Menu `⋮` (trois points, en haut à droite) → **Installer l'application** (ou **Ajouter à l'écran d'accueil**, le libellé exact dépend de la version de Chrome).
+3. Confirmer. Une icône apparaît sur l'écran d'accueil.
+4. Ouvrir l'app une première fois avec une connexion active, et éventuellement se déplacer/zoomer sur les rues à relever prochainement (met les tuiles de carte correspondantes en cache, cf. Specifications.md §4).
 
 ### Lancer l'application
 
-[A décrire]
+1. Toucher l'icône sur l'écran d'accueil du téléphone.
+2. L'app s'ouvre en plein écran, sans barre d'adresse Chrome.
+3. **Fonctionne hors connexion** une fois installée (saisie, modification, suppression, export/import GPKG) — seules les zones de carte jamais consultées en ligne au préalable resteront vides sans connexion. Une connexion n'est nécessaire que pour la première installation et pour récupérer une mise à jour de l'app.
 
 ### Tests fonctionnels de l'application
 
@@ -98,13 +126,25 @@ Fermer la fenêtre `cmd` du serveur local, ou `Ctrl+C` dans cette fenêtre puis 
 
 ## Sous iOS
 
+Même adresse que pour Android (aucun serveur local, aucune contrainte de Wi-Fi partagé). Sur iPhone, **seul Safari** permet d'installer l'app — pas Chrome.
+
+```
+https://mmoreauprof-svg.github.io/mobilier-urbain/app/
+```
+
 ### Installer l'application
 
-[A décrire]
+1. Sur l'iPhone, ouvrir **Safari** et aller à l'adresse ci-dessus.
+2. Toucher l'icône **Partager** (carré avec une flèche vers le haut, en bas de l'écran).
+3. Faire défiler la liste et toucher **Sur l'écran d'accueil**.
+4. Vérifier/modifier le nom proposé, puis toucher **Ajouter** (en haut à droite).
+5. Ouvrir l'app une première fois avec une connexion active, et éventuellement se déplacer/zoomer sur les rues à relever prochainement (met les tuiles de carte correspondantes en cache, cf. Specifications.md §4).
 
 ### Lancer l'application
 
-[A décrire]
+1. Toucher l'icône sur l'écran d'accueil.
+2. L'app s'ouvre en plein écran, sans barre Safari.
+3. **Fonctionne hors connexion** une fois installée (saisie, modification, suppression, export/import GPKG) — seules les zones de carte jamais consultées en ligne au préalable resteront vides sans connexion. Une connexion n'est nécessaire que pour la première installation et pour récupérer une mise à jour de l'app.
 
 ### Tests fonctionnels de l'application
 

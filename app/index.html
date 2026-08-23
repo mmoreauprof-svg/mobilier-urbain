@@ -6,6 +6,15 @@
   <title>Mobilier Urbain</title>
   <link rel="stylesheet" href="lib/leaflet/leaflet.css">
   <link rel="stylesheet" href="css/style.css">
+
+  <!-- Installabilité PWA (§11 des spécifications) -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1a73e8">
+  <link rel="icon" href="icons/app-icon-32.png">
+  <link rel="apple-touch-icon" href="icons/app-icon-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Mobilier">
 </head>
 <body>
   <div id="map"></div>
@@ -176,5 +185,6 @@
   <script src="js/commerce.js"></script>
   <script src="lib/geopackage/geopackage.min.js"></script>
   <script src="js/gpkg.js"></script>
+  <script src="js/pwa.js"></script>
 </body>
 </html>

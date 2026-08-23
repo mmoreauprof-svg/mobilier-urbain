@@ -149,7 +149,7 @@
 
     async function chargerFichiersApp() {
       const antiCache = '?t=' + Date.now();
-      const fichiers = ['util.js', 'map.js', 'position.js', 'device.js', 'geo.js', 'icones.js', 'storage.js', 'filtres.js', 'interface.js', 'mobilier.js', 'commerce.js', 'gpkg.js'];
+      const fichiers = ['util.js', 'map.js', 'position.js', 'device.js', 'geo.js', 'icones.js', 'storage.js', 'filtres.js', 'interface.js', 'mobilier.js', 'commerce.js', 'gpkg.js', 'pwa.js'];
       for (const fichier of fichiers) {
         await chargerScript('../js/' + fichier + antiCache);
       }
@@ -1067,6 +1067,18 @@
         const fichierInvalide = new File(['ceci n\'est pas un gpkg'], 'invalide.gpkg');
         await declencherImport(fichierInvalide);
         return alertesCapturees.length > 0 && derniereAlerte().includes('illisible');
+      });
+
+      // --- Installabilité PWA (§11) : manifest.json ---
+      await verifierAsync('manifest.json est valide et contient les champs requis pour l\'installabilité', async () => {
+        const reponse = await fetch('../manifest.json');
+        if (!reponse.ok) return false;
+        const manifeste = await reponse.json();
+        return manifeste.name === 'Mobilier Urbain'
+          && manifeste.display === 'standalone'
+          && Array.isArray(manifeste.icons) && manifeste.icons.length >= 2
+          && manifeste.icons.some((i) => i.sizes === '192x192')
+          && manifeste.icons.some((i) => i.sizes === '512x512');
       });
     }
 
