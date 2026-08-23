@@ -3,12 +3,19 @@
 const commerceMarkers = {};
 let uidEnEditionCommerce = null;
 let positionManuelleCommerce = null;
+// Dernier type créé (PC uniquement, §C/saisie en chaîne — demande du 23/08) :
+// pré-rempli à la prochaine création plutôt que de repartir sur "Supérette",
+// utile pour enchaîner de nombreux commerces du même type sans repasser par
+// la liste.
+let dernierTypeCommerce = null;
 
 function construirePopupCommerce(objet) {
   const nom = objet.nom_commerce ? echapperHtml(objet.nom_commerce) : '(local sans enseigne)';
   const dateFermetureHtml = objet.date_fermeture ? `<br>Fermé depuis : ${echapperHtml(objet.date_fermeture)}` : '';
   const commentaireHtml = objet.commentaire ? `<br>${echapperHtml(objet.commentaire)}` : '';
-  return `<strong>${nom}</strong><br>${echapperHtml(objet.type_commerce)}<br>État : ${echapperHtml(objet.etat)}${dateFermetureHtml}${commentaireHtml}<br><button onclick="ouvrirEditionCommerce('${objet.uid}')">Modifier / Supprimer</button>`;
+  return `<strong>${nom}</strong><br>${echapperHtml(objet.type_commerce)}<br>État : ${echapperHtml(objet.etat)}${dateFermetureHtml}${commentaireHtml}<br>`
+    + `<button onclick="ouvrirEditionCommerce('${objet.uid}')">Modifier</button> `
+    + `<button onclick="supprimerCommerce('${objet.uid}')">Supprimer</button>`;
 }
 
 function afficherMarqueurCommerce(objet) {
@@ -42,11 +49,21 @@ function ouvrirFormulaireCommerceNouveau(positionManuelle) {
   uidEnEditionCommerce = null;
   document.getElementById('titre-modal-commerce').textContent = 'Nouveau commerce';
   document.getElementById('bouton-enregistrer-commerce').textContent = 'Enregistrer';
-  document.getElementById('bouton-supprimer-commerce').hidden = true;
   const panneau = document.getElementById('modal-commerce');
   panneau.hidden = false;
   positionnerPanneauFormulaire(panneau, positionManuelle || getDernierePosition());
   definirOngletActif('commerce');
+
+  // PC uniquement (saisie en chaîne, §6.6bis) : type pré-rempli avec le
+  // dernier utilisé. Focus sur le bouton Enregistrer (pas sur la liste
+  // Type) pour qu'Entrée valide immédiatement sans clic souris — sur
+  // certains navigateurs, Entrée avec le focus sur un <select> rouvre sa
+  // liste au lieu de soumettre le formulaire (retour utilisateur du 23/08).
+  // Sans effet sur mobile (pas de clavier virtuel imposé).
+  if (estAffichagePC()) {
+    if (dernierTypeCommerce) document.getElementById('commerce-type').value = dernierTypeCommerce;
+    document.getElementById('bouton-enregistrer-commerce').focus();
+  }
 }
 
 function fermerFormulaireCommerce() {
@@ -71,13 +88,14 @@ async function ouvrirEditionCommerce(uid) {
 
   document.getElementById('titre-modal-commerce').textContent = 'Modifier le commerce';
   document.getElementById('bouton-enregistrer-commerce').textContent = 'Enregistrer les modifications';
-  document.getElementById('bouton-supprimer-commerce').hidden = false;
 
   map.closePopup();
   const panneau = document.getElementById('modal-commerce');
   panneau.hidden = false;
   positionnerPanneauFormulaire(panneau, [objet.lat, objet.lon]);
   definirOngletActif('commerce');
+
+  if (estAffichagePC()) document.getElementById('bouton-enregistrer-commerce').focus();
 }
 
 async function enregistrerCommerceDepuisFormulaire() {
@@ -137,6 +155,7 @@ async function enregistrerCommerceDepuisFormulaire() {
 
     await enregistrerCommerce(objet);
     afficherMarqueurCommerce(objet);
+    dernierTypeCommerce = typeCommerce;
     fermerFormulaireCommerce();
   } catch (erreur) {
     console.error('Échec de l\'enregistrement du commerce :', erreur);
@@ -149,18 +168,21 @@ async function enregistrerCommerceDepuisFormulaire() {
   }
 }
 
-async function supprimerCommerceEnEdition() {
-  if (!uidEnEditionCommerce) return;
+// Suppression directe depuis le popup (demande du 23/08, §B) — plus besoin
+// d'ouvrir le panneau d'édition pour supprimer. Le bouton OK de confirm() est
+// déjà celui activé par défaut par la touche Entrée dans tous les navigateurs.
+async function supprimerCommerce(uid) {
   if (!confirm('Supprimer définitivement ce commerce ?')) return;
 
   try {
-    await supprimerDeStore('commerce', uidEnEditionCommerce);
-    const marker = commerceMarkers[uidEnEditionCommerce];
+    await supprimerDeStore('commerce', uid);
+    const marker = commerceMarkers[uid];
     if (marker) {
+      map.closePopup();
       map.removeLayer(marker);
-      delete commerceMarkers[uidEnEditionCommerce];
+      delete commerceMarkers[uid];
     }
-    fermerFormulaireCommerce();
+    if (uidEnEditionCommerce === uid) fermerFormulaireCommerce();
   } catch (erreur) {
     console.error('Échec de la suppression du commerce :', erreur);
     alert('Échec de la suppression. Réessayez.');
@@ -179,7 +201,9 @@ async function chargerCommercesExistants() {
 
 document.getElementById('bouton-ajouter-commerce').addEventListener('click', ouvrirFormulaireCommerce);
 document.getElementById('bouton-annuler-commerce').addEventListener('click', fermerFormulaireCommerce);
-document.getElementById('bouton-enregistrer-commerce').addEventListener('click', enregistrerCommerceDepuisFormulaire);
-document.getElementById('bouton-supprimer-commerce').addEventListener('click', supprimerCommerceEnEdition);
+document.getElementById('form-commerce').addEventListener('submit', (evenement) => {
+  evenement.preventDefault();
+  enregistrerCommerceDepuisFormulaire();
+});
 
 chargerCommercesExistants();

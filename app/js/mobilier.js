@@ -3,10 +3,16 @@
 const mobilierMarkers = {};
 let uidEnEditionMobilier = null;
 let positionManuelleMobilier = null;
+// Dernier type créé (PC uniquement, §C/saisie en chaîne — demande du 23/08) :
+// pré-rempli à la prochaine création plutôt que de repartir sur "Banc", utile
+// pour enchaîner de nombreux objets du même type sans repasser par la liste.
+let dernierTypeMobilier = null;
 
 function construirePopupMobilier(objet) {
   const commentaireHtml = objet.commentaire ? `<br>${echapperHtml(objet.commentaire)}` : '';
-  return `<strong>${echapperHtml(objet.type_objet)}</strong><br>État : ${echapperHtml(objet.etat)}<br>Nombre : ${objet.nombre}${commentaireHtml}<br><button onclick="ouvrirEditionMobilier('${objet.uid}')">Modifier / Supprimer</button>`;
+  return `<strong>${echapperHtml(objet.type_objet)}</strong><br>État : ${echapperHtml(objet.etat)}<br>Nombre : ${objet.nombre}${commentaireHtml}<br>`
+    + `<button onclick="ouvrirEditionMobilier('${objet.uid}')">Modifier</button> `
+    + `<button onclick="supprimerMobilier('${objet.uid}')">Supprimer</button>`;
 }
 
 function afficherMarqueurMobilier(objet) {
@@ -42,11 +48,21 @@ function ouvrirFormulaireMobilierNouveau(positionManuelle) {
   uidEnEditionMobilier = null;
   document.getElementById('titre-modal-mobilier').textContent = 'Nouveau mobilier urbain';
   document.getElementById('bouton-enregistrer-mobilier').textContent = 'Enregistrer';
-  document.getElementById('bouton-supprimer-mobilier').hidden = true;
   const panneau = document.getElementById('modal-mobilier-urbain');
   panneau.hidden = false;
   positionnerPanneauFormulaire(panneau, positionManuelle || getDernierePosition());
   definirOngletActif('mobilier');
+
+  // PC uniquement (saisie en chaîne, §6.6bis) : type pré-rempli avec le
+  // dernier utilisé. Focus sur le bouton Enregistrer (pas sur la liste
+  // Type) pour qu'Entrée valide immédiatement sans clic souris — sur
+  // certains navigateurs, Entrée avec le focus sur un <select> rouvre sa
+  // liste au lieu de soumettre le formulaire (retour utilisateur du 23/08).
+  // Sans effet sur mobile (pas de clavier virtuel imposé).
+  if (estAffichagePC()) {
+    if (dernierTypeMobilier) document.getElementById('mobilier-type').value = dernierTypeMobilier;
+    document.getElementById('bouton-enregistrer-mobilier').focus();
+  }
 }
 
 function fermerFormulaireMobilier() {
@@ -70,13 +86,14 @@ async function ouvrirEditionMobilier(uid) {
 
   document.getElementById('titre-modal-mobilier').textContent = 'Modifier le mobilier urbain';
   document.getElementById('bouton-enregistrer-mobilier').textContent = 'Enregistrer les modifications';
-  document.getElementById('bouton-supprimer-mobilier').hidden = false;
 
   map.closePopup();
   const panneau = document.getElementById('modal-mobilier-urbain');
   panneau.hidden = false;
   positionnerPanneauFormulaire(panneau, [objet.lat, objet.lon]);
   definirOngletActif('mobilier');
+
+  if (estAffichagePC()) document.getElementById('bouton-enregistrer-mobilier').focus();
 }
 
 async function enregistrerMobilierDepuisFormulaire() {
@@ -133,6 +150,7 @@ async function enregistrerMobilierDepuisFormulaire() {
 
     await enregistrerMobilierUrbain(objet);
     afficherMarqueurMobilier(objet);
+    dernierTypeMobilier = typeObjet;
     fermerFormulaireMobilier();
   } catch (erreur) {
     console.error('Échec de l\'enregistrement du mobilier urbain :', erreur);
@@ -145,18 +163,21 @@ async function enregistrerMobilierDepuisFormulaire() {
   }
 }
 
-async function supprimerMobilierEnEdition() {
-  if (!uidEnEditionMobilier) return;
+// Suppression directe depuis le popup (demande du 23/08, §B) — plus besoin
+// d'ouvrir le panneau d'édition pour supprimer. Le bouton OK de confirm() est
+// déjà celui activé par défaut par la touche Entrée dans tous les navigateurs.
+async function supprimerMobilier(uid) {
   if (!confirm('Supprimer définitivement ce mobilier urbain ?')) return;
 
   try {
-    await supprimerDeStore('mobilier_urbain', uidEnEditionMobilier);
-    const marker = mobilierMarkers[uidEnEditionMobilier];
+    await supprimerDeStore('mobilier_urbain', uid);
+    const marker = mobilierMarkers[uid];
     if (marker) {
+      map.closePopup();
       map.removeLayer(marker);
-      delete mobilierMarkers[uidEnEditionMobilier];
+      delete mobilierMarkers[uid];
     }
-    fermerFormulaireMobilier();
+    if (uidEnEditionMobilier === uid) fermerFormulaireMobilier();
   } catch (erreur) {
     console.error('Échec de la suppression du mobilier urbain :', erreur);
     alert('Échec de la suppression. Réessayez.');
@@ -175,7 +196,9 @@ async function chargerMobilierExistant() {
 
 document.getElementById('bouton-ajouter-mobilier').addEventListener('click', ouvrirFormulaireMobilier);
 document.getElementById('bouton-annuler-mobilier').addEventListener('click', fermerFormulaireMobilier);
-document.getElementById('bouton-enregistrer-mobilier').addEventListener('click', enregistrerMobilierDepuisFormulaire);
-document.getElementById('bouton-supprimer-mobilier').addEventListener('click', supprimerMobilierEnEdition);
+document.getElementById('form-mobilier-urbain').addEventListener('submit', (evenement) => {
+  evenement.preventDefault();
+  enregistrerMobilierDepuisFormulaire();
+});
 
 chargerMobilierExistant();

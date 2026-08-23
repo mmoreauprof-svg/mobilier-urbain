@@ -64,7 +64,7 @@
       <button type="button" id="bouton-importer-mobile"></button>
     </div>
 
-    <div id="modal-mobilier-urbain" hidden>
+    <div id="modal-mobilier-urbain" class="panneau-formulaire" hidden>
       <h2 id="titre-modal-mobilier"></h2>
       <form id="form-mobilier-urbain">
         <select id="mobilier-type">
@@ -82,13 +82,12 @@
         </select>
         <input type="number" id="mobilier-nombre" value="1" min="1">
         <textarea id="mobilier-commentaire"></textarea>
-        <button type="button" id="bouton-supprimer-mobilier" hidden>Supprimer</button>
         <button type="button" id="bouton-annuler-mobilier">Annuler</button>
-        <button type="button" id="bouton-enregistrer-mobilier">Enregistrer</button>
+        <button type="submit" id="bouton-enregistrer-mobilier">Enregistrer</button>
       </form>
     </div>
 
-    <div id="modal-commerce" hidden>
+    <div id="modal-commerce" class="panneau-formulaire" hidden>
       <h2 id="titre-modal-commerce"></h2>
       <form id="form-commerce">
         <input type="text" id="commerce-nom">
@@ -110,9 +109,8 @@
         </select>
         <input type="month" id="commerce-date-fermeture">
         <textarea id="commerce-commentaire"></textarea>
-        <button type="button" id="bouton-supprimer-commerce" hidden>Supprimer</button>
         <button type="button" id="bouton-annuler-commerce">Annuler</button>
-        <button type="button" id="bouton-enregistrer-commerce">Enregistrer</button>
+        <button type="submit" id="bouton-enregistrer-commerce">Enregistrer</button>
       </form>
     </div>
 
@@ -255,12 +253,20 @@
       document.getElementById('commerce-commentaire').value = commentaire;
     }
 
-    // Ouvre le popup Leaflet du marqueur et renvoie son bouton "Modifier /
-    // Supprimer" — exerce le vrai attribut onclick généré par
+    // Ouvre le popup Leaflet du marqueur et renvoie son bouton "Modifier"
+    // (le premier des deux, depuis la séparation Modifier/Supprimer du
+    // 23/08) — exerce le vrai attribut onclick généré par
     // construirePopupMobilier/Commerce, pas un raccourci vers la fonction.
     function boutonPopup(marker) {
       marker.openPopup();
-      return marker.getPopup().getElement().querySelector('button');
+      return marker.getPopup().getElement().querySelectorAll('button')[0];
+    }
+
+    // Idem pour le bouton "Supprimer" (le second), qui supprime directement
+    // sans passer par le panneau d'édition.
+    function boutonPopupSupprimer(marker) {
+      marker.openPopup();
+      return marker.getPopup().getElement().querySelectorAll('button')[1];
     }
 
     function executerTestsPurLogique() {
@@ -487,6 +493,111 @@
           return top >= 10 && left >= 10 && left <= 1200 - 300 - 10;
         })()
       );
+
+      // --- Demande du 23/08, §A.3 : panneau déplaçable sur PC (poignée = titre) ---
+      verifier(
+        'interface : le titre du panneau mobilier est une vraie poignée de déplacement (mousedown/mousemove met à jour la position)',
+        (() => {
+          const original = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+          Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
+          const panneau = document.getElementById('modal-mobilier-urbain');
+          const poignee = document.getElementById('titre-modal-mobilier');
+          panneau.hidden = false;
+          panneau.style.setProperty('--popover-left', '100px');
+          panneau.style.setProperty('--popover-top', '100px');
+
+          poignee.dispatchEvent(new MouseEvent('mousedown', { clientX: 150, clientY: 150, bubbles: true }));
+          document.dispatchEvent(new MouseEvent('mousemove', { clientX: 220, clientY: 190, bubbles: true }));
+          document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+
+          const aBouge = panneau.style.getPropertyValue('--popover-left') !== '100px'
+            && panneau.style.getPropertyValue('--popover-top') !== '100px';
+          panneau.hidden = true;
+          Object.defineProperty(window, 'innerWidth', original);
+          return aBouge;
+        })()
+      );
+      verifier(
+        'interface : le déplacement du panneau reste sans effet sur mobile (pas de poignée hors PC)',
+        (() => {
+          const original = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+          Object.defineProperty(window, 'innerWidth', { value: 400, configurable: true });
+          const panneau = document.getElementById('modal-commerce');
+          const poignee = document.getElementById('titre-modal-commerce');
+          panneau.hidden = false;
+          panneau.style.setProperty('--popover-left', '50px');
+
+          poignee.dispatchEvent(new MouseEvent('mousedown', { clientX: 150, clientY: 150, bubbles: true }));
+          document.dispatchEvent(new MouseEvent('mousemove', { clientX: 300, clientY: 300, bubbles: true }));
+          document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+
+          const inchange = panneau.style.getPropertyValue('--popover-left') === '50px';
+          panneau.hidden = true;
+          Object.defineProperty(window, 'innerWidth', original);
+          return inchange;
+        })()
+      );
+
+      // --- Demande du 23/08, §A.4 : ajustement au viewport visuel réel sur mobile ---
+      verifier(
+        'interface : ajusterPanneauxMobilesViewport réduit la hauteur du panneau quand le viewport visuel se réduit (bannière native/clavier)',
+        (() => {
+          const descripteurOriginal = Object.getOwnPropertyDescriptor(window, 'visualViewport');
+          try {
+            Object.defineProperty(window, 'visualViewport', {
+              value: { height: window.innerHeight - 200, offsetTop: 0, addEventListener: () => {}, removeEventListener: () => {} },
+              configurable: true
+            });
+          } catch (e) {
+            return true; // visualViewport non redéfinissable dans ce navigateur — non testable ici, pas un échec de l'app
+          }
+
+          const originalLargeur = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+          Object.defineProperty(window, 'innerWidth', { value: 400, configurable: true }); // mode mobile
+          const panneau = document.getElementById('modal-mobilier-urbain');
+
+          ajusterPanneauxMobilesViewport();
+          const reduit = panneau.style.bottom === 'auto' && panneau.style.height !== '';
+          panneau.style.top = '';
+          panneau.style.bottom = '';
+          panneau.style.height = '';
+
+          Object.defineProperty(window, 'innerWidth', originalLargeur);
+          if (descripteurOriginal) Object.defineProperty(window, 'visualViewport', descripteurOriginal);
+          return reduit;
+        })()
+      );
+
+      // --- Demande du 23/08, §B.1 : popup mobilier/commerce avec 2 boutons distincts ---
+      verifier(
+        'popup mobilier : contient deux boutons distincts Modifier et Supprimer (plus "Modifier / Supprimer" unique)',
+        (() => {
+          const html = construirePopupMobilier({ uid: 'AUD-POPUP-1', type_objet: 'Banc', etat: 'Bon', nombre: 1, commentaire: '' });
+          return html.includes('>Modifier<') && html.includes('>Supprimer<')
+            && html.includes("ouvrirEditionMobilier('AUD-POPUP-1')") && html.includes("supprimerMobilier('AUD-POPUP-1')");
+        })()
+      );
+      verifier(
+        'popup commerce : contient deux boutons distincts Modifier et Supprimer',
+        (() => {
+          const html = construirePopupCommerce({ uid: 'AUD-POPUP-2', nom_commerce: 'Test', type_commerce: 'Coiffeur', etat: 'Occupé' });
+          return html.includes('>Modifier<') && html.includes('>Supprimer<')
+            && html.includes("ouvrirEditionCommerce('AUD-POPUP-2')") && html.includes("supprimerCommerce('AUD-POPUP-2')");
+        })()
+      );
+
+      // --- Demande du 23/08, §D : couleurs des icônes et de la pastille ---
+      verifier(
+        'badge de quantité : fond gris neutre (#333333), pas jaune/rouge — lisible avec des chiffres blancs',
+        (() => {
+          const div = document.createElement('div');
+          div.className = 'badge-nombre';
+          document.body.appendChild(div);
+          const couleur = getComputedStyle(div).backgroundColor;
+          document.body.removeChild(div);
+          return couleur === 'rgb(51, 51, 51)';
+        })()
+      );
     }
 
     // === Parcours fonctionnels automatisés (2026-08-22, élargis 2026-08-22) ===
@@ -596,19 +707,21 @@
           && maj.last_update !== objet.last_update;
       });
 
-      // --- Mobilier urbain : suppression nominale via le popup réel ---
-      await verifierAsync('mobilier : suppression via le popup retire l\'objet et le marqueur', async () => {
+      // --- Mobilier urbain : suppression directe via le popup réel (bouton
+      // "Supprimer" séparé du bouton "Modifier" depuis le 23/08 — plus besoin
+      // d'ouvrir le panneau d'édition) ---
+      await verifierAsync('mobilier : suppression directe via le popup retire l\'objet et le marqueur', async () => {
         const objet = { uid: 'TST-DEL-1', type_objet: 'Arrêt de bus', etat: 'Bon', nombre: 1, commentaire: '', last_update: new Date().toISOString(), lat: 42, lon: 42 };
         await enregistrerMobilierUrbain(objet);
         afficherMarqueurMobilier(objet);
 
-        boutonPopup(mobilierMarkers['TST-DEL-1']).click();
-        await attendreCondition(() => document.getElementById('modal-mobilier-urbain').hidden === false);
-        document.getElementById('bouton-supprimer-mobilier').click();
-        await attendreCondition(() => document.getElementById('modal-mobilier-urbain').hidden === true);
+        confirmReponse = true;
+        boutonPopupSupprimer(mobilierMarkers['TST-DEL-1']).click();
+        await attendreCondition(() => !mobilierMarkers['TST-DEL-1']);
 
         const objets = await listerMobilierUrbain();
-        return !objets.some((o) => o.uid === 'TST-DEL-1') && !mobilierMarkers['TST-DEL-1'];
+        return !objets.some((o) => o.uid === 'TST-DEL-1')
+          && document.getElementById('modal-mobilier-urbain').hidden === true; // jamais ouvert
       });
 
       // --- Mobilier urbain : doublon refusé puis accepté ---
@@ -738,19 +851,20 @@
           && maj.last_update !== objet.last_update;
       });
 
-      // --- Commerce : suppression nominale via le popup réel ---
-      await verifierAsync('commerce : suppression via le popup retire l\'objet et le marqueur', async () => {
+      // --- Commerce : suppression directe via le popup réel (bouton
+      // "Supprimer" séparé du bouton "Modifier" depuis le 23/08) ---
+      await verifierAsync('commerce : suppression directe via le popup retire l\'objet et le marqueur', async () => {
         const objet = { uid: 'TST-DEL-2', nom_commerce: '', type_commerce: 'Opticien', etat: 'Vacant', date_fermeture: '', commentaire: '', last_update: new Date().toISOString(), lat: 52, lon: 52 };
         await enregistrerCommerce(objet);
         afficherMarqueurCommerce(objet);
 
-        boutonPopup(commerceMarkers['TST-DEL-2']).click();
-        await attendreCondition(() => document.getElementById('modal-commerce').hidden === false);
-        document.getElementById('bouton-supprimer-commerce').click();
-        await attendreCondition(() => document.getElementById('modal-commerce').hidden === true);
+        confirmReponse = true;
+        boutonPopupSupprimer(commerceMarkers['TST-DEL-2']).click();
+        await attendreCondition(() => !commerceMarkers['TST-DEL-2']);
 
         const objets = await listerCommerces();
-        return !objets.some((o) => o.uid === 'TST-DEL-2') && !commerceMarkers['TST-DEL-2'];
+        return !objets.some((o) => o.uid === 'TST-DEL-2')
+          && document.getElementById('modal-commerce').hidden === true; // jamais ouvert
       });
 
       // --- Commerce : doublon refusé puis accepté ---
@@ -1316,6 +1430,165 @@
       // FICHIERS_APP nous intéresse. ---
       await verifierAsync('service worker : chaque fichier de FICHIERS_APP répond bien 200', async () => {
         const resultats = await Promise.all(FICHIERS_APP.map((chemin) => fetch('../' + chemin).then((r) => r.ok).catch(() => false)));
+        return resultats.every(Boolean);
+      });
+
+      // --- Demande du 23/08, §A.2 : Entrée (soumission du formulaire) déclenche l'enregistrement ---
+      // requestSubmit() emprunte le même chemin que la touche Entrée dans un
+      // champ texte (déclenchement de l'événement 'submit' du formulaire),
+      // contrairement à un simple .click() qui ne teste que la souris.
+      await verifierAsync('mobilier : la soumission du formulaire (équivalent Entrée) enregistre bien l\'objet', async () => {
+        onPositionRecue({ coords: { latitude: 60, longitude: 60 } });
+        document.getElementById('bouton-ajouter-mobilier').click();
+        remplirFormulaireMobilier({ type: 'Banc', commentaire: 'Via Entrée' });
+        document.getElementById('form-mobilier-urbain').requestSubmit();
+        await attendreCondition(() => document.getElementById('modal-mobilier-urbain').hidden === true);
+
+        const objet = (await listerMobilierUrbain()).find((o) => o.lat === 60 && o.lon === 60);
+        return !!objet && objet.commentaire === 'Via Entrée';
+      });
+      await verifierAsync('commerce : la soumission du formulaire (équivalent Entrée) enregistre bien l\'objet', async () => {
+        onPositionRecue({ coords: { latitude: 62, longitude: 62 } });
+        document.getElementById('bouton-ajouter-commerce').click();
+        remplirFormulaireCommerce({ nom: 'Via Entrée', type: 'Restaurant' });
+        document.getElementById('form-commerce').requestSubmit();
+        await attendreCondition(() => document.getElementById('modal-commerce').hidden === true);
+
+        const objet = (await listerCommerces()).find((o) => o.lat === 62 && o.lon === 62);
+        return !!objet && objet.nom_commerce === 'Via Entrée';
+      });
+
+      // --- Demande du 23/08, §C : raccourcis clavier, PC uniquement ---
+      await verifierAsync('raccourcis clavier PC : "m"/"c" ouvrent les panneaux, un chiffre sélectionne le type pendant que le panneau mobilier est ouvert', async () => {
+        const original = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+        Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
+        onPositionRecue({ coords: { latitude: 61, longitude: 61 } });
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', bubbles: true, cancelable: true }));
+        const mobilierOuvert = document.getElementById('modal-mobilier-urbain').hidden === false;
+
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: '2', bubbles: true, cancelable: true }));
+        const typeSelectionne = document.getElementById('mobilier-type').value === 'Corbeille';
+        fermerFormulaireMobilier();
+
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'c', bubbles: true, cancelable: true }));
+        const commerceOuvert = document.getElementById('modal-commerce').hidden === false;
+        fermerFormulaireCommerce();
+
+        Object.defineProperty(window, 'innerWidth', original);
+        return mobilierOuvert && typeSelectionne && commerceOuvert;
+      });
+      await verifierAsync('raccourcis clavier PC : sans effet quand le focus est dans un champ de saisie (protection anti-interférence)', async () => {
+        const original = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+        Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
+        document.getElementById('modal-mobilier-urbain').hidden = true;
+        // Le champ doit être réellement visible pour pouvoir recevoir le focus
+        // (un élément dans un ancêtre caché — display:none — ne peut pas être
+        // focus() avec succès, ce qui fausserait le test).
+        document.getElementById('modal-commerce').hidden = false;
+
+        const champ = document.getElementById('commerce-nom');
+        champ.focus();
+        champ.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', bubbles: true, cancelable: true }));
+        const resultat = document.getElementById('modal-mobilier-urbain').hidden === true;
+        champ.blur();
+        champ.value = '';
+        document.getElementById('modal-commerce').hidden = true;
+
+        Object.defineProperty(window, 'innerWidth', original);
+        return resultat;
+      });
+      await verifierAsync('raccourcis clavier PC : sans effet sur mobile (largeur < 768px)', async () => {
+        const original = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+        Object.defineProperty(window, 'innerWidth', { value: 400, configurable: true });
+        document.getElementById('modal-mobilier-urbain').hidden = true;
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', bubbles: true, cancelable: true }));
+        const resultat = document.getElementById('modal-mobilier-urbain').hidden === true;
+
+        Object.defineProperty(window, 'innerWidth', original);
+        return resultat;
+      });
+
+      // --- Suite à la demande du 23/08 : le bouton Enregistrer n'était activable
+      // qu'à la souris (aucun champ focus à l'ouverture, donc Entrée sans effet).
+      // Corrigé par un focus automatique + mémorisation du dernier type, PC
+      // uniquement, pour la saisie en chaîne. Focus sur le bouton Enregistrer
+      // lui-même (pas la liste Type) : retour utilisateur du 23/08 — sur
+      // certains navigateurs, Entrée avec le focus sur un <select> rouvre sa
+      // liste au lieu de soumettre le formulaire. ---
+      await verifierAsync('mobilier PC : le type créé est mémorisé et pré-rempli à la prochaine création, focus sur Enregistrer, Entrée seule suffit ensuite', async () => {
+        const original = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+        Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
+        onPositionRecue({ coords: { latitude: 70, longitude: 70 } });
+
+        document.getElementById('bouton-ajouter-mobilier').click();
+        document.getElementById('mobilier-type').value = 'Abri bus';
+        document.getElementById('form-mobilier-urbain').requestSubmit();
+        await attendreCondition(() => document.getElementById('modal-mobilier-urbain').hidden === true);
+
+        document.getElementById('bouton-ajouter-mobilier').click();
+        const typePreRempli = document.getElementById('mobilier-type').value === 'Abri bus';
+        const focusSurBouton = document.activeElement === document.getElementById('bouton-enregistrer-mobilier');
+        // Entrée seule (aucune autre interaction) doit suffire à enregistrer un second objet.
+        document.getElementById('form-mobilier-urbain').requestSubmit();
+        await attendreCondition(() => document.getElementById('modal-mobilier-urbain').hidden === true);
+
+        const objets = (await listerMobilierUrbain()).filter((o) => o.lat === 70 && o.lon === 70);
+        Object.defineProperty(window, 'innerWidth', original);
+        return typePreRempli && focusSurBouton && objets.length === 2 && objets.every((o) => o.type_objet === 'Abri bus');
+      });
+      await verifierAsync('mobilier : sur mobile, le type par défaut reste "Banc" et rien n\'est focus automatiquement (pas de clavier virtuel imposé)', async () => {
+        const original = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+        Object.defineProperty(window, 'innerWidth', { value: 400, configurable: true });
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+
+        document.getElementById('bouton-ajouter-mobilier').click();
+        const typeParDefaut = document.getElementById('mobilier-type').value === 'Banc';
+        const rienFocus = document.activeElement !== document.getElementById('bouton-enregistrer-mobilier')
+          && document.activeElement !== document.getElementById('mobilier-type');
+        fermerFormulaireMobilier();
+
+        Object.defineProperty(window, 'innerWidth', original);
+        return typeParDefaut && rienFocus;
+      });
+      await verifierAsync('commerce PC : le type créé est mémorisé et pré-rempli à la prochaine création, focus sur Enregistrer', async () => {
+        const original = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+        Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
+        onPositionRecue({ coords: { latitude: 71, longitude: 71 } });
+
+        document.getElementById('bouton-ajouter-commerce').click();
+        document.getElementById('commerce-type').value = 'Onglerie';
+        document.getElementById('form-commerce').requestSubmit();
+        await attendreCondition(() => document.getElementById('modal-commerce').hidden === true);
+
+        document.getElementById('bouton-ajouter-commerce').click();
+        const typePreRempli = document.getElementById('commerce-type').value === 'Onglerie';
+        const focusSurBouton = document.activeElement === document.getElementById('bouton-enregistrer-commerce');
+        fermerFormulaireCommerce();
+
+        Object.defineProperty(window, 'innerWidth', original);
+        return typePreRempli && focusSurBouton;
+      });
+
+      // --- Demande du 23/08, §D : couleurs de fond réelles des fichiers icônes ---
+      await verifierAsync('icônes : les couleurs de fond attendues sont bien appliquées (une couleur distincte par type de mobilier + vert/rouge commerce)', async () => {
+        const attendus = {
+          'banc.svg': '#1b5e20',
+          'corbeille.svg': '#e65100',
+          'distributeur-sacs.svg': '#5d4037',
+          'arret-bus.svg': '#29b6f6',
+          'abri-bus.svg': '#1a73e8',
+          'commerce-occupe.svg': '#4caf50',
+          'commerce-vacant.svg': '#c62828'
+        };
+        const resultats = await Promise.all(Object.entries(attendus).map(async ([fichier, couleur]) => {
+          const texte = await (await fetch('../icons/' + fichier)).text();
+          return texte.toLowerCase().includes(couleur.toLowerCase());
+        }));
         return resultats.every(Boolean);
       });
 

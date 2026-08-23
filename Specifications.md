@@ -78,10 +78,10 @@ Le CdC initial recommandait Lambert-93 (EPSG:2154). **Décision : WGS84 (EPSG:43
 - Fond de carte OSM standard, centré par défaut sur Viroflay.
 - Affichage de la position en temps réel (point bleu classique).
 - Affichage des objets déjà enregistrés sous forme de marqueurs, avec icônes stylisées ✅ :
-  - **Mobilier urbain** : une icône distincte par type — banc, corbeille, distributeur de sacs, arrêt de bus, abri bus (5 icônes à concevoir).
-  - **Commerce** : une même icône, en **deux couleurs** selon l'état — une couleur pour Ouvert, une autre pour Fermé/vacant.
+  - **Mobilier urbain** : une icône distincte par type, avec une couleur de fond propre par type pour une distinction rapide sur la carte (revu le 23/08, affiné le même jour) — **vert foncé** (`#1b5e20`) banc, **orange** (`#e65100`) corbeille, **marron** (`#5d4037`) distributeur de sacs, **bleu clair** (`#29b6f6`) arrêt de bus, **bleu** (`#1a73e8`, inchangé) abri bus.
+  - **Commerce** : une même icône, en **deux couleurs** selon l'état — **vert clair** (`#4caf50`, affiné le 23/08 — plus clair que le vert foncé du banc pour éviter toute confusion) pour Occupé, **rouge** (`#c62828`, revu le 23/08 — auparavant orange) pour Vacant.
 - Fonction de zoom, dezoom, déplacement.
-- **Badge de quantité** ✅ : quand `nombre` > 1 pour un mobilier urbain, un badge numérique se superpose à son icône (coin supérieur droit) indiquant le nombre d'éléments à cet endroit. Pas de badge quand `nombre` = 1 (cas par défaut, le plus courant).
+- **Badge de quantité** ✅ : quand `nombre` > 1 pour un mobilier urbain, un badge numérique se superpose à son icône (coin supérieur droit) indiquant le nombre d'éléments à cet endroit. Pas de badge quand `nombre` = 1 (cas par défaut, le plus courant). Fond **gris neutre** (`#333333`, revu le 23/08 — auparavant rouge) choisi pour rester lisible avec des chiffres blancs sans entrer en conflit visuel avec aucune des couleurs d'icônes ci-dessus.
 
 ### 6.1quater Filtre d'affichage par catégorie ✅
 
@@ -125,7 +125,9 @@ Bouton dédié → enregistre la position actuelle → formulaire :
 | coordonnées | Point GPS | Automatique |
 
 ### 6.4 Modification / suppression
-- Sélection d'un objet existant (tap sur son marqueur) → ouverture du formulaire pré-rempli → modification ou suppression.
+- Sélection d'un objet existant (tap sur son marqueur) → popup avec deux boutons distincts **Modifier** et **Supprimer** (séparés depuis le 23/08 — auparavant un seul bouton "Modifier / Supprimer" ouvrant systématiquement le formulaire, la suppression n'étant possible que depuis son bouton interne).
+- **Modifier** ouvre le formulaire pré-rempli, avec les mêmes boutons Enregistrer/Annuler qu'à la création (le bouton Supprimer, désormais redondant avec celui du popup, a été retiré du formulaire).
+- **Supprimer** déclenche directement une confirmation (`confirm()` natif du navigateur — bouton OK déjà activé par défaut avec la touche Entrée) sans ouvrir le formulaire.
 - `last_update` remis à jour à chaque modification.
 
 ### 6.4bis Sélection manuelle d'un point sur la carte ✅
@@ -179,6 +181,21 @@ Deux concepts d'interface différents selon la taille d'écran, choisis après r
 - **Mobile — barre d'onglets du bas.** 4 onglets fixes (Carte, Mobilier, Commerce, Fichier), toujours visibles y compris pendant la saisie. Toucher "Mobilier"/"Commerce" ouvre le même formulaire que le bouton correspondant sur PC, mais en écran plein (au-dessus de la barre d'onglets, qui reste accessible). "Fichier" regroupe Exporter/Importer sur un écran dédié (pas d'action directe en barre, contrairement au PC). Le filtre reste accessible via une icône flottante sur la carte plutôt que dans la barre d'onglets.
 - Le choix **Remplacer/Fusionner** à l'import et l'**identification de l'appareil** restent de vraies boîtes de dialogue centrées sur les deux plateformes : ils ne sont rattachés à aucun point de la carte.
 - Un même jeu de fonctions gère les deux modes (`app/js/interface.js` : `positionnerPanneauFormulaire`, `definirOngletActif`) — pas de code dupliqué entre PC et mobile, seul l'habillage CSS diffère selon la largeur d'écran.
+- **Ergonomie des panneaux de saisie** ✅ (revu le 23/08) :
+  - Listes déroulantes alignées sur la taille des labels (14px, au lieu de 16px) pour un panneau moins haut. Les champs texte restent à 16px (contrainte iOS : en dessous, Safari zoome automatiquement à la mise au point d'un champ texte — pas les listes déroulantes, sans risque à réduire).
+  - Le bouton **Enregistrer** est de type `submit` : la touche Entrée dans un champ (sauf le commentaire, où elle insère une nouvelle ligne — comportement standard des `<textarea>`) valide et ferme le panneau, comme un clic sur Enregistrer.
+  - **PC uniquement** (retour utilisateur du 23/08 : le bouton n'était activable qu'à la souris car aucun champ n'avait le focus à l'ouverture, rendant Entrée sans effet) : à l'ouverture du panneau (création et édition), le bouton **Enregistrer** reçoit directement le focus — Entrée l'active donc immédiatement, sans aucun clic. Focus volontairement mis sur le bouton plutôt que sur la liste Type : sur certains navigateurs, Entrée avec le focus sur un `<select>` rouvre sa liste au lieu de soumettre le formulaire (constaté par l'utilisateur), alors qu'un bouton reçoit toujours Entrée sans ambiguïté. La liste Type est en plus **pré-remplie avec le dernier type créé** (au lieu de toujours repartir sur le premier de la liste), pour enchaîner rapidement de nombreux objets du même type (saisie en centaines d'unités) : après le tout premier objet d'une série, plus aucune interaction souris n'est nécessaire avec le formulaire lui-même. Sans effet sur mobile (pas de clavier virtuel imposé à l'ouverture, usage plus unitaire).
+  - **PC uniquement** : le titre du panneau sert de poignée de déplacement (glisser-déposer à la souris), pour repositionner le panneau sans jamais interférer avec les listes déroulantes/champs sous-jacents.
+  - **Mobile uniquement** : le panneau s'ajuste dynamiquement au viewport visuel réel (`window.visualViewport`), pas seulement à la taille de la fenêtre — une bannière native du navigateur (ex. demande d'autorisation de géolocalisation) ou le clavier virtuel réduisent l'espace réellement visible sans redimensionner la fenêtre elle-même ; sans cet ajustement, le bas du panneau (boutons Annuler/Enregistrer) pourrait se retrouver masqué.
+
+### 6.6bis Raccourcis clavier — saisie en chaîne sur PC ✅ (23/08)
+
+Pour accélérer la saisie répétée de plusieurs objets à la suite (usage PC, sans GPS, généralement par sélection manuelle de points cf. §6.4bis) :
+
+- `M` / `C` ouvrent directement « + Mobilier urbain » / « + Commerce », sans viser la barre d'outils à la souris.
+- `1` à `5` sélectionnent le type de mobilier urbain (dans l'ordre de la liste déroulante) pendant que le panneau mobilier est ouvert, sans passer par la liste.
+- **PC uniquement** (`estAffichagePC()`) et **jamais actifs si le focus est dans un champ texte/liste/commentaire** — condition essentielle : sans elle, taper ces caractères au clavier (y compris virtuel, sur mobile) déclencherait les raccourcis au lieu de saisir le texte. Combinaisons avec Ctrl/Cmd/Alt ignorées (pour ne pas interférer avec les raccourcis du navigateur/système).
+- Volontairement limité aux raccourcis : la ré-ouverture automatique du panneau et le pré-remplissage du dernier type saisi, envisagés puis écartés, auraient risqué d'altérer l'expérience sur Android/iPhone (l'utilisateur souhaitait une solution strictement PC).
 
 ## 7. Contraintes techniques ✅
 

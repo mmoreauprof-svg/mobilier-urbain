@@ -75,3 +75,104 @@ document.querySelectorAll('.bouton-filtres-icone').forEach((bouton) => {
     panneau.hidden = !panneau.hidden;
   });
 });
+
+// --- Panneau déplaçable sur PC (demande du 23/08, §A) ---
+// Le titre sert de poignée (cf. .poignee-deplacement dans style.css) plutôt
+// que tout le panneau, pour ne pas interférer avec les clics sur les listes
+// déroulantes/champs du formulaire.
+function rendreDeplacable(panneau, poignee) {
+  poignee.addEventListener('mousedown', (evenement) => {
+    if (!estAffichagePC()) return;
+    evenement.preventDefault();
+    const rect = panneau.getBoundingClientRect();
+    const decalageX = evenement.clientX - rect.left;
+    const decalageY = evenement.clientY - rect.top;
+
+    function deplacer(e) {
+      let left = e.clientX - decalageX;
+      let top = e.clientY - decalageY;
+      left = Math.max(0, Math.min(left, window.innerWidth - rect.width));
+      top = Math.max(0, Math.min(top, window.innerHeight - rect.height));
+      panneau.style.setProperty('--popover-left', left + 'px');
+      panneau.style.setProperty('--popover-top', top + 'px');
+    }
+    function arreterDeplacement() {
+      document.removeEventListener('mousemove', deplacer);
+      document.removeEventListener('mouseup', arreterDeplacement);
+    }
+    document.addEventListener('mousemove', deplacer);
+    document.addEventListener('mouseup', arreterDeplacement);
+  });
+}
+
+rendreDeplacable(document.getElementById('modal-mobilier-urbain'), document.getElementById('titre-modal-mobilier'));
+rendreDeplacable(document.getElementById('modal-commerce'), document.getElementById('titre-modal-commerce'));
+
+// --- Ajustement au viewport visuel réel sur mobile (demande du 23/08, §A.4) ---
+// Une bannière native du navigateur (ex. demande d'autorisation de
+// géolocalisation) ou le clavier virtuel peuvent réduire l'espace réellement
+// visible sans que la fenêtre elle-même ne change de taille — window.innerHeight
+// ne bouge pas, mais visualViewport.height si. Sans ça, le panneau plein écran
+// (calé sur window.innerHeight via CSS) peut se retrouver partiellement masqué.
+// On ne touche au panneau que si l'écart est net (>40px), pour ignorer les
+// petites variations et revenir proprement au CSS normal sinon.
+function ajusterPanneauxMobilesViewport() {
+  if (estAffichagePC() || !window.visualViewport) return;
+  const vv = window.visualViewport;
+  const reduit = (window.innerHeight - vv.height) > 40;
+  document.querySelectorAll('.panneau-formulaire').forEach((panneau) => {
+    if (reduit) {
+      panneau.style.top = vv.offsetTop + 'px';
+      panneau.style.bottom = 'auto';
+      panneau.style.height = (vv.height - 56) + 'px';
+    } else {
+      panneau.style.top = '';
+      panneau.style.bottom = '';
+      panneau.style.height = '';
+    }
+  });
+}
+
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', ajusterPanneauxMobilesViewport);
+  window.visualViewport.addEventListener('scroll', ajusterPanneauxMobilesViewport);
+}
+
+// --- Raccourcis clavier, PC uniquement (demande du 23/08, §C) ---
+// N'agissent jamais si le focus est dans un champ texte/liste/commentaire —
+// essentiel même en restant limité au PC : ça évite d'interférer avec la
+// saisie normale (ex. taper "m" dans un commentaire n'ouvre pas "+ Mobilier").
+function focusDansChampEditable() {
+  const actif = document.activeElement;
+  return !!actif && ['INPUT', 'TEXTAREA', 'SELECT'].includes(actif.tagName);
+}
+
+const TOUCHES_TYPE_MOBILIER = ['1', '2', '3', '4', '5'];
+
+document.addEventListener('keydown', (evenement) => {
+  if (!estAffichagePC() || focusDansChampEditable()) return;
+  if (evenement.ctrlKey || evenement.metaKey || evenement.altKey) return;
+
+  const autreModalOuvert = !document.getElementById('modal-code-appareil').hidden
+    || !document.getElementById('modal-import-choix').hidden;
+  if (autreModalOuvert) return;
+
+  const panneauMobilierOuvert = !document.getElementById('modal-mobilier-urbain').hidden;
+  const panneauCommerceOuvert = !document.getElementById('modal-commerce').hidden;
+
+  if (panneauMobilierOuvert && TOUCHES_TYPE_MOBILIER.includes(evenement.key)) {
+    document.getElementById('mobilier-type').selectedIndex = TOUCHES_TYPE_MOBILIER.indexOf(evenement.key);
+    evenement.preventDefault();
+    return;
+  }
+
+  if (panneauMobilierOuvert || panneauCommerceOuvert) return;
+
+  if (evenement.key === 'm' || evenement.key === 'M') {
+    ouvrirFormulaireMobilier();
+    evenement.preventDefault();
+  } else if (evenement.key === 'c' || evenement.key === 'C') {
+    ouvrirFormulaireCommerce();
+    evenement.preventDefault();
+  }
+});

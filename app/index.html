@@ -94,7 +94,7 @@
   <!-- Formulaire mobilier urbain : bulle contextuelle sur PC, écran plein sur mobile -->
   <div id="modal-mobilier-urbain" class="panneau-formulaire" hidden>
     <div class="modal-contenu">
-      <h2 id="titre-modal-mobilier">Nouveau mobilier urbain</h2>
+      <h2 id="titre-modal-mobilier" class="poignee-deplacement">Nouveau mobilier urbain</h2>
       <form id="form-mobilier-urbain">
         <label for="mobilier-type">Type</label>
         <select id="mobilier-type">
@@ -120,9 +120,8 @@
         <textarea id="mobilier-commentaire" rows="2"></textarea>
 
         <div class="modal-boutons">
-          <button type="button" id="bouton-supprimer-mobilier" class="bouton-danger" hidden>Supprimer</button>
           <button type="button" id="bouton-annuler-mobilier">Annuler</button>
-          <button type="button" id="bouton-enregistrer-mobilier">Enregistrer</button>
+          <button type="submit" id="bouton-enregistrer-mobilier">Enregistrer</button>
         </div>
       </form>
     </div>
@@ -131,7 +130,7 @@
   <!-- Formulaire commerce : même principe -->
   <div id="modal-commerce" class="panneau-formulaire" hidden>
     <div class="modal-contenu">
-      <h2 id="titre-modal-commerce">Nouveau commerce</h2>
+      <h2 id="titre-modal-commerce" class="poignee-deplacement">Nouveau commerce</h2>
       <form id="form-commerce">
         <label for="commerce-nom">Nom du commerce (optionnel)</label>
         <input type="text" id="commerce-nom" placeholder="Ex. Boulangerie Dupont">
@@ -163,9 +162,8 @@
         <textarea id="commerce-commentaire" rows="2"></textarea>
 
         <div class="modal-boutons">
-          <button type="button" id="bouton-supprimer-commerce" class="bouton-danger" hidden>Supprimer</button>
           <button type="button" id="bouton-annuler-commerce">Annuler</button>
-          <button type="button" id="bouton-enregistrer-commerce">Enregistrer</button>
+          <button type="submit" id="bouton-enregistrer-commerce">Enregistrer</button>
         </div>
       </form>
     </div>
