@@ -240,3 +240,17 @@ Suite à un usage réel sur deux appareils l'après-midi du 23/08, l'utilisateur
 **Correctif** : `appliquerImport` (mode fusionner) compare désormais `last_update` — l'objet importé remplace le local si strictement plus récent, sinon ignoré comme avant. `messageResumeImport` affiche le détail (ajoutés/mis à jour/ignorés) uniquement pour ce mode (absent pour "remplacer", qui n'a pas cette notion).
 
 2 nouveaux tests : mise à jour effective quand l'importé est plus récent (avec vérification du message affiché) ; non-écrasement quand l'importé est plus ancien ou identique. Le test existant "fusionner ignore les doublons" reste valide sans modification (les objets comparés ont un `last_update` identique de part et d'autre, donc toujours ignorés sous la nouvelle logique aussi). **Suite complète : 95/95 tests OK**, rejouée deux fois de suite consécutives (un échec isolé et non reproductible du test viewport — déjà signalé comme dépendant de l'environnement — observé une fois avant ces deux relances propres).
+
+## Relecture du 24/08 : 4 trous comblés
+
+Nouvelle demande de tests, indépendante de l'audit précédent :
+
+1. **Logique réelle du service worker (install/fetch), jamais exercée** : `service-worker.js` ne peut pas tourner dans un vrai contexte Service Worker au sein de ce harnais (contexte global distinct, non reproductible fidèlement). Plutôt qu'accepter cette limite telle quelle, la logique de décision a été **extraite en fonctions pures**, sans changer le comportement :
+   - `strategieCache(methode, url)` — remplace le `if/else` imbriqué du gestionnaire `fetch` (tuile OSM / fichier de l'app / rien), retourne une chaîne testable directement.
+   - `fichiersEnEchec(resultatsAllSettled, fichiers)` — remplace le `.map().filter()` du gestionnaire `install` qui identifie les fichiers n'ayant pas pu être mis en cache.
+   - 4 nouveaux tests directs sur ces fonctions + `estTuileOsm` (déjà pure), sans mock de `caches`/`fetch`/`self.clients`. `VERSION` incrémentée à `v3` (changement de code publié, cf. règle du fichier).
+2. **Suppression directe (popup) jamais testée en échec IndexedDB**, contrairement à l'enregistrement : 2 nouveaux tests (mobilier + commerce) — `supprimerDeStore` substitué pour échouer, vérifie l'alerte affichée et l'absence de toute suppression réelle (donnée + marqueur).
+3. **Bouton Annuler jamais testé explicitement** : 4 nouveaux tests (création et édition, mobilier et commerce) — modification de champs puis Annuler, vérifie qu'aucune écriture n'a eu lieu et que l'objet existant (cas édition) reste strictement inchangé.
+4. **`visualViewport` non testable rendu visible** : nouvelle fonction `ignorer(nom, raison)`, distincte de `verifier()` — enregistre une ligne `SKIP - ...` et incrémente un compteur séparé (`ignores`), sans jamais compter comme un succès. Le résumé final affiche `(+ N ignoré(s), cf. SKIP ci-dessus)` quand c'est le cas. Le test `ajusterPanneauxMobilesViewport` utilise désormais ce mécanisme au lieu d'un `return true` silencieux.
+
+**10 nouveaux tests. Suite complète : 105/105 tests OK**, rejouée deux fois de suite consécutives sans échec (un échec isolé du test viewport observé une fois avant ces deux relances, non reproductible — comportement déjà connu, pas lié aux changements de cette session).

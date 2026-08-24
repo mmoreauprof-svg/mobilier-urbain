@@ -14,7 +14,7 @@
 // en cache (même symptôme que le cache HTTP du navigateur, déjà rencontré plusieurs
 // fois en développement).
 
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE_APP = `mobilier-urbain-app-${VERSION}`;
 const CACHE_TUILES = 'mobilier-urbain-tuiles';
 
@@ -56,6 +56,16 @@ const FICHIERS_APP = [
   'icons/commerce-vacant.svg',
 ];
 
+// Fonction pure (audit 2026-08-23, relecture du 24/08, point 1) : extraite du
+// gestionnaire 'install' pour être testable directement, sans dépendre du
+// contexte Service Worker (caches.open, cache.add...) qui ne peut pas être
+// reproduit fidèlement dans le harnais de test.
+function fichiersEnEchec(resultatsAllSettled, fichiers) {
+  return resultatsAllSettled
+    .map((r, i) => (r.status === 'rejected' ? fichiers[i] : null))
+    .filter(Boolean);
+}
+
 // cache.addAll() est tout ou rien : un seul fichier en échec (404, coupure
 // réseau pendant l'installation) faisait échouer toute la mise en cache sans
 // que rien ne le signale (audit 2026-08-23, point 6) — l'app se croyait
@@ -65,9 +75,7 @@ self.addEventListener('install', (evenement) => {
   evenement.waitUntil((async () => {
     const cache = await caches.open(CACHE_APP);
     const resultats = await Promise.allSettled(FICHIERS_APP.map((url) => cache.add(url)));
-    const manquants = resultats
-      .map((r, i) => (r.status === 'rejected' ? FICHIERS_APP[i] : null))
-      .filter(Boolean);
+    const manquants = fichiersEnEchec(resultats, FICHIERS_APP);
     if (manquants.length) {
       console.warn('Mise en cache incomplète à l\'installation :', manquants);
       const clients = await self.clients.matchAll({ includeUncontrolled: true, type: 'window' });
@@ -93,14 +101,21 @@ function estTuileOsm(url) {
   return /^https:\/\/[abc]\.tile\.openstreetmap\.org\//.test(url);
 }
 
+// Fonction pure (relecture du 24/08, point 1) : décide de la stratégie à
+// appliquer à une requête, extraite du gestionnaire 'fetch' pour être
+// testable directement (méthode + URL en entrée, une chaîne en sortie —
+// aucune dépendance à evenement.respondWith()/caches/fetch réels).
+function strategieCache(methode, url) {
+  if (methode !== 'GET') return 'aucune';
+  if (estTuileOsm(url)) return 'tuile';
+  if (url.startsWith(self.location.origin)) return 'app';
+  return 'aucune';
+}
+
 self.addEventListener('fetch', (evenement) => {
-  const url = evenement.request.url;
+  const strategie = strategieCache(evenement.request.method, evenement.request.url);
 
-  if (evenement.request.method !== 'GET') {
-    return;
-  }
-
-  if (estTuileOsm(url)) {
+  if (strategie === 'tuile') {
     evenement.respondWith(
       fetch(evenement.request)
         .then((reponse) => {
@@ -110,10 +125,7 @@ self.addEventListener('fetch', (evenement) => {
         })
         .catch(() => caches.match(evenement.request))
     );
-    return;
-  }
-
-  if (url.startsWith(self.location.origin)) {
+  } else if (strategie === 'app') {
     evenement.respondWith(
       caches.match(evenement.request).then((reponse) => reponse || fetch(evenement.request))
     );

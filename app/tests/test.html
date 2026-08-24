@@ -177,6 +177,7 @@
     const resultats = [];
     let ok = 0;
     let total = 0;
+    let ignores = 0;
 
     function verifier(nom, condition) {
       total++;
@@ -186,6 +187,15 @@
       } else {
         resultats.push(`FAIL - ${nom}`);
       }
+    }
+
+    // Distinct de FAIL/OK : un test non exécutable dans cet environnement
+    // précis (ex. redéfinir window.visualViewport, refusé par certains
+    // navigateurs) n'est ni un succès ni un échec de l'app — le compter comme
+    // OK masquerait qu'il n'a en fait rien vérifié (demande du 23/08).
+    function ignorer(nom, raison) {
+      ignores++;
+      resultats.push(`SKIP - ${nom} (${raison})`);
     }
 
     async function verifierAsync(nom, fonctionAsync) {
@@ -539,34 +549,36 @@
       );
 
       // --- Demande du 23/08, §A.4 : ajustement au viewport visuel réel sur mobile ---
-      verifier(
-        'interface : ajusterPanneauxMobilesViewport réduit la hauteur du panneau quand le viewport visuel se réduit (bannière native/clavier)',
-        (() => {
-          const descripteurOriginal = Object.getOwnPropertyDescriptor(window, 'visualViewport');
-          try {
-            Object.defineProperty(window, 'visualViewport', {
-              value: { height: window.innerHeight - 200, offsetTop: 0, addEventListener: () => {}, removeEventListener: () => {} },
-              configurable: true
-            });
-          } catch (e) {
-            return true; // visualViewport non redéfinissable dans ce navigateur — non testable ici, pas un échec de l'app
-          }
+      // Remplace un ancien "return true" silencieux en cas de non-support :
+      // visible explicitement en SKIP dans le rapport plutôt que compté à
+      // tort comme un succès (demande du 23/08, point 4 de la relecture).
+      (() => {
+        const nom = 'interface : ajusterPanneauxMobilesViewport réduit la hauteur du panneau quand le viewport visuel se réduit (bannière native/clavier)';
+        const descripteurOriginal = Object.getOwnPropertyDescriptor(window, 'visualViewport');
+        try {
+          Object.defineProperty(window, 'visualViewport', {
+            value: { height: window.innerHeight - 200, offsetTop: 0, addEventListener: () => {}, removeEventListener: () => {} },
+            configurable: true
+          });
+        } catch (e) {
+          ignorer(nom, 'window.visualViewport non redéfinissable dans ce navigateur — non testable ici, pas un échec de l\'app');
+          return;
+        }
 
-          const originalLargeur = Object.getOwnPropertyDescriptor(window, 'innerWidth');
-          Object.defineProperty(window, 'innerWidth', { value: 400, configurable: true }); // mode mobile
-          const panneau = document.getElementById('modal-mobilier-urbain');
+        const originalLargeur = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+        Object.defineProperty(window, 'innerWidth', { value: 400, configurable: true }); // mode mobile
+        const panneau = document.getElementById('modal-mobilier-urbain');
 
-          ajusterPanneauxMobilesViewport();
-          const reduit = panneau.style.bottom === 'auto' && panneau.style.height !== '';
-          panneau.style.top = '';
-          panneau.style.bottom = '';
-          panneau.style.height = '';
+        ajusterPanneauxMobilesViewport();
+        const reduit = panneau.style.bottom === 'auto' && panneau.style.height !== '';
+        panneau.style.top = '';
+        panneau.style.bottom = '';
+        panneau.style.height = '';
 
-          Object.defineProperty(window, 'innerWidth', originalLargeur);
-          if (descripteurOriginal) Object.defineProperty(window, 'visualViewport', descripteurOriginal);
-          return reduit;
-        })()
-      );
+        Object.defineProperty(window, 'innerWidth', originalLargeur);
+        if (descripteurOriginal) Object.defineProperty(window, 'visualViewport', descripteurOriginal);
+        verifier(nom, reduit);
+      })();
 
       // --- Demande du 23/08, §B.1 : popup mobilier/commerce avec 2 boutons distincts ---
       verifier(
@@ -597,6 +609,42 @@
           document.body.removeChild(div);
           return couleur === 'rgb(51, 51, 51)';
         })()
+      );
+
+      // --- Demande du 24/08, point 1 : logique réelle du service worker
+      // (install/fetch), isolée en fonctions pures testables directement
+      // (service-worker.js chargé comme script normal, cf. chargerFichiersApp) ---
+      verifier(
+        'service worker : estTuileOsm reconnaît uniquement les sous-domaines a/b/c.tile.openstreetmap.org',
+        estTuileOsm('https://a.tile.openstreetmap.org/10/511/511.png') === true
+        && estTuileOsm('https://b.tile.openstreetmap.org/10/511/511.png') === true
+        && estTuileOsm('https://c.tile.openstreetmap.org/10/511/511.png') === true
+        && estTuileOsm('https://tile.openstreetmap.org/10/511/511.png') === false // pas de sous-domaine a/b/c
+        && estTuileOsm('https://exemple.com/faux.tile.openstreetmap.org') === false
+        && estTuileOsm(self.location.origin + '/js/util.js') === false
+      );
+      verifier(
+        'service worker : strategieCache choisit la bonne stratégie selon la méthode HTTP et l\'origine de l\'URL',
+        (() => {
+          const origine = self.location.origin;
+          return strategieCache('GET', 'https://a.tile.openstreetmap.org/1/2/3.png') === 'tuile'
+            && strategieCache('GET', origine + '/js/util.js') === 'app'
+            && strategieCache('POST', origine + '/js/util.js') === 'aucune' // seul GET est mis en cache
+            && strategieCache('GET', 'https://autre-domaine.example.com/x') === 'aucune'; // hors origine, pas une tuile OSM
+        })()
+      );
+      verifier(
+        'service worker : fichiersEnEchec identifie précisément quels fichiers ont échoué (pas juste "il y a eu un échec")',
+        (() => {
+          const resultats = [{ status: 'fulfilled' }, { status: 'rejected' }, { status: 'fulfilled' }, { status: 'rejected' }];
+          const fichiers = ['a.js', 'b.js', 'c.js', 'd.js'];
+          const echecs = fichiersEnEchec(resultats, fichiers);
+          return JSON.stringify(echecs) === JSON.stringify(['b.js', 'd.js']);
+        })()
+      );
+      verifier(
+        'service worker : fichiersEnEchec renvoie un tableau vide si tout a réussi',
+        JSON.stringify(fichiersEnEchec([{ status: 'fulfilled' }, { status: 'fulfilled' }], ['a.js', 'b.js'])) === '[]'
       );
     }
 
@@ -707,6 +755,38 @@
           && maj.last_update !== objet.last_update;
       });
 
+      // --- Demande du 24/08, point 3 : Annuler ne doit jamais rien écrire,
+      // même après avoir modifié des champs (création et édition) ---
+      await verifierAsync('mobilier : Annuler une création ferme le panneau sans rien enregistrer, même après avoir modifié des champs', async () => {
+        onPositionRecue({ coords: { latitude: 63, longitude: 63 } });
+        const avant = (await listerMobilierUrbain()).length;
+
+        document.getElementById('bouton-ajouter-mobilier').click();
+        remplirFormulaireMobilier({ type: 'Corbeille', etat: 'HS', nombre: '5', commentaire: 'Ne doit jamais être enregistré' });
+        document.getElementById('bouton-annuler-mobilier').click();
+
+        const apres = await listerMobilierUrbain();
+        return avant === apres.length
+          && document.getElementById('modal-mobilier-urbain').hidden === true
+          && !apres.some((o) => o.commentaire === 'Ne doit jamais être enregistré');
+      });
+      await verifierAsync('mobilier : Annuler une édition laisse l\'objet existant totalement inchangé', async () => {
+        const objet = { uid: 'TST-CANCEL-1', type_objet: 'Banc', etat: 'Bon', nombre: 1, commentaire: 'Original', last_update: '2020-01-01T00:00:00.000Z', lat: 64, lon: 64 };
+        await enregistrerMobilierUrbain(objet);
+        afficherMarqueurMobilier(objet);
+
+        await ouvrirEditionMobilier('TST-CANCEL-1');
+        document.getElementById('mobilier-etat').value = 'HS';
+        document.getElementById('mobilier-nombre').value = '9';
+        document.getElementById('mobilier-commentaire').value = 'Modifié puis annulé';
+        document.getElementById('bouton-annuler-mobilier').click();
+
+        const objetApres = (await listerMobilierUrbain()).find((o) => o.uid === 'TST-CANCEL-1');
+        return objetApres.etat === 'Bon' && objetApres.nombre === 1 && objetApres.commentaire === 'Original'
+          && objetApres.last_update === '2020-01-01T00:00:00.000Z'
+          && document.getElementById('modal-mobilier-urbain').hidden === true;
+      });
+
       // --- Mobilier urbain : suppression directe via le popup réel (bouton
       // "Supprimer" séparé du bouton "Modifier" depuis le 23/08 — plus besoin
       // d'ouvrir le panneau d'édition) ---
@@ -722,6 +802,30 @@
         const objets = await listerMobilierUrbain();
         return !objets.some((o) => o.uid === 'TST-DEL-1')
           && document.getElementById('modal-mobilier-urbain').hidden === true; // jamais ouvert
+      });
+
+      // --- Demande du 24/08, point 2 : échec IndexedDB sur la suppression
+      // directe (popup), symétrique au test déjà existant pour l'enregistrement ---
+      await verifierAsync('mobilier : échec IndexedDB sur la suppression directe (popup) → alerte visible, rien de supprimé', async () => {
+        const objet = { uid: 'TST-DELFAIL-1', type_objet: 'Banc', etat: 'Bon', nombre: 1, commentaire: '', last_update: new Date().toISOString(), lat: 47, lon: 47 };
+        await enregistrerMobilierUrbain(objet);
+        afficherMarqueurMobilier(objet);
+
+        const original = window.supprimerDeStore;
+        window.supprimerDeStore = () => Promise.reject(new Error('DB indisponible (test)'));
+        confirmReponse = true;
+        alertesCapturees.length = 0;
+        try {
+          boutonPopupSupprimer(mobilierMarkers['TST-DELFAIL-1']).click();
+          await attendreCondition(() => alertesCapturees.length > 0);
+        } finally {
+          window.supprimerDeStore = original;
+        }
+
+        const objets = await listerMobilierUrbain();
+        return derniereAlerte().includes('Échec de la suppression')
+          && objets.some((o) => o.uid === 'TST-DELFAIL-1')
+          && !!mobilierMarkers['TST-DELFAIL-1'];
       });
 
       // --- Mobilier urbain : doublon refusé puis accepté ---
@@ -851,6 +955,37 @@
           && maj.last_update !== objet.last_update;
       });
 
+      // --- Demande du 24/08, point 3 : Annuler ne doit jamais rien écrire,
+      // même après avoir modifié des champs (création et édition) ---
+      await verifierAsync('commerce : Annuler une création ferme le panneau sans rien enregistrer, même après avoir modifié des champs', async () => {
+        onPositionRecue({ coords: { latitude: 65, longitude: 65 } });
+        const avant = (await listerCommerces()).length;
+
+        document.getElementById('bouton-ajouter-commerce').click();
+        remplirFormulaireCommerce({ nom: 'Ne doit jamais être enregistré', type: 'Restaurant', etat: 'Occupé' });
+        document.getElementById('bouton-annuler-commerce').click();
+
+        const apres = await listerCommerces();
+        return avant === apres.length
+          && document.getElementById('modal-commerce').hidden === true
+          && !apres.some((o) => o.nom_commerce === 'Ne doit jamais être enregistré');
+      });
+      await verifierAsync('commerce : Annuler une édition laisse l\'objet existant totalement inchangé', async () => {
+        const objet = { uid: 'TST-CANCEL-2', nom_commerce: 'Original', type_commerce: 'Boulangerie', etat: 'Occupé', date_fermeture: '', commentaire: 'Original', last_update: '2020-01-01T00:00:00.000Z', lat: 66, lon: 66 };
+        await enregistrerCommerce(objet);
+        afficherMarqueurCommerce(objet);
+
+        await ouvrirEditionCommerce('TST-CANCEL-2');
+        document.getElementById('commerce-etat').value = 'Vacant';
+        document.getElementById('commerce-commentaire').value = 'Modifié puis annulé';
+        document.getElementById('bouton-annuler-commerce').click();
+
+        const objetApres = (await listerCommerces()).find((o) => o.uid === 'TST-CANCEL-2');
+        return objetApres.etat === 'Occupé' && objetApres.commentaire === 'Original'
+          && objetApres.last_update === '2020-01-01T00:00:00.000Z'
+          && document.getElementById('modal-commerce').hidden === true;
+      });
+
       // --- Commerce : suppression directe via le popup réel (bouton
       // "Supprimer" séparé du bouton "Modifier" depuis le 23/08) ---
       await verifierAsync('commerce : suppression directe via le popup retire l\'objet et le marqueur', async () => {
@@ -865,6 +1000,30 @@
         const objets = await listerCommerces();
         return !objets.some((o) => o.uid === 'TST-DEL-2')
           && document.getElementById('modal-commerce').hidden === true; // jamais ouvert
+      });
+
+      // --- Demande du 24/08, point 2 : échec IndexedDB sur la suppression
+      // directe (popup), symétrique au test déjà existant pour l'enregistrement ---
+      await verifierAsync('commerce : échec IndexedDB sur la suppression directe (popup) → alerte visible, rien de supprimé', async () => {
+        const objet = { uid: 'TST-DELFAIL-2', nom_commerce: '', type_commerce: 'Coiffeur', etat: 'Occupé', date_fermeture: '', commentaire: '', last_update: new Date().toISOString(), lat: 48, lon: 48 };
+        await enregistrerCommerce(objet);
+        afficherMarqueurCommerce(objet);
+
+        const original = window.supprimerDeStore;
+        window.supprimerDeStore = () => Promise.reject(new Error('DB indisponible (test)'));
+        confirmReponse = true;
+        alertesCapturees.length = 0;
+        try {
+          boutonPopupSupprimer(commerceMarkers['TST-DELFAIL-2']).click();
+          await attendreCondition(() => alertesCapturees.length > 0);
+        } finally {
+          window.supprimerDeStore = original;
+        }
+
+        const objets = await listerCommerces();
+        return derniereAlerte().includes('Échec de la suppression')
+          && objets.some((o) => o.uid === 'TST-DELFAIL-2')
+          && !!commerceMarkers['TST-DELFAIL-2'];
       });
 
       // --- Commerce : doublon refusé puis accepté ---
@@ -1676,7 +1835,8 @@
         localStorage.removeItem(CLE_COMPTEUR_LOCAL_OVERRIDE);
 
         document.getElementById('resultats').textContent =
-          resultats.join('\n') + `\n\n${ok}/${total} tests OK`;
+          resultats.join('\n') + `\n\n${ok}/${total} tests OK`
+          + (ignores ? ` (+ ${ignores} ignoré(s), cf. SKIP ci-dessus)` : '');
       }
     }
 
