@@ -51,7 +51,10 @@ html, body {
 
 .banniere-selection {
   position: fixed;
-  bottom: 72px;
+  /* + zone sûre iPhone (barre d'accueil) : garde le même écart visuel
+     au-dessus de la barre d'onglets, dont la hauteur totale inclut
+     désormais aussi cette zone (cf. .barre-onglets-mobile). */
+  bottom: calc(72px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 2500;
@@ -75,7 +78,7 @@ html, body {
 
 #code-appareil-label {
   position: absolute;
-  bottom: 64px;
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px));
   left: 8px;
   z-index: 1000;
   background: rgba(255, 255, 255, 0.85);
@@ -229,7 +232,9 @@ html, body {
   top: 0;
   left: 0;
   right: 0;
-  bottom: 56px;
+  /* + zone sûre iPhone : reste au-dessus de la barre d'onglets, dont la
+     hauteur totale inclut désormais aussi cette zone. */
+  bottom: calc(56px + env(safe-area-inset-bottom, 0px));
   z-index: 1800;
   background: transparent;
 }
@@ -256,7 +261,10 @@ html, body {
 }
 
 #bouton-filtres-mobile {
-  position: absolute;
+  /* fixed plutôt qu'absolute (retour de terrain du 24/08) : robuste face aux
+     changements de viewport (zoom/scroll), pas dépendant de la hauteur de
+     page comme absolute peut l'être. */
+  position: fixed;
   top: 10px;
   right: 10px;
   z-index: 1500;
@@ -274,6 +282,12 @@ html, body {
   right: 0;
   bottom: 0;
   height: 56px;
+  /* Zone sûre iPhone (barre d'accueil, retour de terrain du 24/08) : ajoute
+     l'espace nécessaire sous les boutons plutôt que de les laisser recouverts
+     par cette zone — hauteur totale rendue = 56px + zone sûre. Sans effet
+     ailleurs (safe-area-inset-bottom vaut 0 hors iPhone à encoche/barre). */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-sizing: content-box;
   z-index: 1900;
   display: flex;
   background: white;

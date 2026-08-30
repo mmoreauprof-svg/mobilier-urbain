@@ -72,6 +72,7 @@ function fermerFormulaireCommerce() {
   uidEnEditionCommerce = null;
   positionManuelleCommerce = null;
   definirOngletActif('carte');
+  reafficherBarresMobiles();
 }
 
 async function ouvrirEditionCommerce(uid) {

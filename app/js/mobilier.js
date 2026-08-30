@@ -71,6 +71,7 @@ function fermerFormulaireMobilier() {
   uidEnEditionMobilier = null;
   positionManuelleMobilier = null;
   definirOngletActif('carte');
+  reafficherBarresMobiles();
 }
 
 async function ouvrirEditionMobilier(uid) {

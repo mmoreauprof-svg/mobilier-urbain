@@ -254,3 +254,16 @@ Nouvelle demande de tests, indépendante de l'audit précédent :
 4. **`visualViewport` non testable rendu visible** : nouvelle fonction `ignorer(nom, raison)`, distincte de `verifier()` — enregistre une ligne `SKIP - ...` et incrémente un compteur séparé (`ignores`), sans jamais compter comme un succès. Le résumé final affiche `(+ N ignoré(s), cf. SKIP ci-dessus)` quand c'est le cas. Le test `ajusterPanneauxMobilesViewport` utilise désormais ce mécanisme au lieu d'un `return true` silencieux.
 
 **10 nouveaux tests. Suite complète : 105/105 tests OK**, rejouée deux fois de suite consécutives sans échec (un échec isolé du test viewport observé une fois avant ces deux relances, non reproductible — comportement déjà connu, pas lié aux changements de cette session).
+
+## Bug de terrain (24/08) : barre d'outils mobile disparaissant sur iPhone 15
+
+Cf. Specifications.md §6.6ter pour le contexte et les 3 corrections (zoom de page désactivé, `reafficherBarresMobiles()`, bouton filtre en `position: fixed`, zone sûre iPhone). 6 nouveaux tests :
+
+- Logique pure : `reafficherBarresMobiles()` réaffirme un affichage normal même si la barre/le bouton avaient été masqués (simulé directement).
+- Fonctionnel : chaque point de fermeture (mobilier, commerce, écran Fichier) déclenche bien cette réaffirmation — vérifié en masquant artificiellement la barre juste avant de fermer, puis en confirmant qu'elle est réaffichée.
+- `index.html` contient bien `user-scalable=no`, `maximum-scale=1.0` et `viewport-fit=cover`.
+- `#bouton-filtres-mobile` est bien en `position: fixed` (plus `absolute`).
+
+**Diagnostic précis d'une instabilité déjà notée** (§ précédente, "un échec isolé... non reproductible") : en creusant la réapparition de cet échec pendant cette session, la cause réelle a été identifiée — `window.innerHeight`/`innerWidth` valent **0** dans l'outil navigateur de Claude quand le panneau n'est pas activement affiché/composité au moment de l'exécution (même famille que l'incapacité déjà connue à produire des captures d'écran ; confirmé qu'un onglet fraîchement créé en arrière-plan, ou même remis au premier plan sans y exécuter de JS entre-temps, peut renvoyer 0). Le test s'appuyait sur `window.innerHeight` sans s'en prémunir. Corrigé : une vérification explicite déclenche désormais `ignorer()` (SKIP) quand `window.innerHeight` vaut 0, plutôt que de calculer un résultat faux à partir d'une valeur invalide. Note pratique retenue pour la suite : préférer `preview_start` à `tabs_create` pour obtenir un onglet correctement dimensionné dès le départ.
+
+**Suite complète : 110/110 tests OK** (+ 1 ignoré, SKIP désormais correctement déclenché plutôt qu'un faux échec), rejouée deux fois de suite. Vérifications manuelles complémentaires sur l'app réelle à 393px de large (iPhone 15) : barre d'onglets confirmée `position: fixed`/`display: flex`, bouton filtre confirmé `position: fixed`, balise viewport confirmée, et le scénario exact du bug simulé directement (masquer la barre puis fermer un panneau) confirme la réaffirmation automatique.

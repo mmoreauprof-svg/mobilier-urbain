@@ -554,6 +554,18 @@
       // tort comme un succès (demande du 23/08, point 4 de la relecture).
       (() => {
         const nom = 'interface : ajusterPanneauxMobilesViewport réduit la hauteur du panneau quand le viewport visuel se réduit (bannière native/clavier)';
+
+        // Diagnostiqué le 24/08 : window.innerHeight vaut parfois 0 dans
+        // l'outil navigateur de Claude quand le panneau n'est pas activement
+        // affiché/composité au moment de l'exécution (même famille que
+        // l'incapacité déjà connue à produire des captures d'écran) — le test
+        // échouerait à tort (reduit calculé sur une base fausse) plutôt que de
+        // signaler qu'il n'est simplement pas exécutable dans ces conditions.
+        if (!window.innerHeight) {
+          ignorer(nom, 'window.innerHeight vaut 0 ici (panneau du navigateur non composité) — non testable, pas un échec de l\'app');
+          return;
+        }
+
         const descripteurOriginal = Object.getOwnPropertyDescriptor(window, 'visualViewport');
         try {
           Object.defineProperty(window, 'visualViewport', {
@@ -645,6 +657,22 @@
       verifier(
         'service worker : fichiersEnEchec renvoie un tableau vide si tout a réussi',
         JSON.stringify(fichiersEnEchec([{ status: 'fulfilled' }, { status: 'fulfilled' }], ['a.js', 'b.js'])) === '[]'
+      );
+
+      // --- Retour de terrain du 24/08 : bug de rendu iOS (barre d'onglets/
+      // bouton filtre rendus hors zone visible). reafficherBarresMobiles()
+      // force un recalcul de mise en page plutôt que de faire confiance au
+      // CSS seul (position: fixed) pour s'auto-corriger. ---
+      verifier(
+        'interface : reafficherBarresMobiles réaffirme un affichage normal (pas bloqué à "none") de la barre d\'onglets et du bouton filtre',
+        (() => {
+          const barre = document.getElementById('barre-onglets-mobile');
+          const bouton = document.getElementById('bouton-filtres-mobile');
+          barre.style.display = 'none'; // simule le bug de rendu observé sur le terrain
+          bouton.style.display = 'none';
+          reafficherBarresMobiles();
+          return barre.style.display === '' && bouton.style.display === '';
+        })()
       );
     }
 
@@ -1797,6 +1825,42 @@
         }));
         return resultats.every(Boolean);
       });
+
+      // --- Retour de terrain du 24/08 : chaque point de fermeture de panneau
+      // doit bien déclencher reafficherBarresMobiles(), pas seulement la
+      // fonction elle-même (vérifiée en logique pure ci-dessus) ---
+      await verifierAsync('mobilier : fermer le panneau réaffirme la visibilité de la barre d\'onglets même si elle avait été masquée par erreur', async () => {
+        onPositionRecue({ coords: { latitude: 67, longitude: 67 } });
+        document.getElementById('bouton-ajouter-mobilier').click();
+        document.getElementById('barre-onglets-mobile').style.display = 'none'; // simule le bug
+        fermerFormulaireMobilier();
+        return document.getElementById('barre-onglets-mobile').style.display === '';
+      });
+      await verifierAsync('commerce : fermer le panneau réaffirme la visibilité de la barre d\'onglets même si elle avait été masquée par erreur', async () => {
+        onPositionRecue({ coords: { latitude: 68, longitude: 68 } });
+        document.getElementById('bouton-ajouter-commerce').click();
+        document.getElementById('barre-onglets-mobile').style.display = 'none'; // simule le bug
+        fermerFormulaireCommerce();
+        return document.getElementById('barre-onglets-mobile').style.display === '';
+      });
+      await verifierAsync('écran Fichier : le fermer réaffirme la visibilité de la barre d\'onglets même si elle avait été masquée par erreur', async () => {
+        ouvrirEcranFichier();
+        document.getElementById('barre-onglets-mobile').style.display = 'none'; // simule le bug
+        fermerEcranFichier();
+        return document.getElementById('barre-onglets-mobile').style.display === '';
+      });
+
+      // --- Retour de terrain du 24/08 : viewport meta (zoom de page bloqué,
+      // safe-area pour la barre d'accueil iPhone) et bouton filtre en
+      // position fixed plutôt qu'absolute (plus robuste) ---
+      await verifierAsync('index.html : le zoom de page est désactivé et viewport-fit=cover est présent (zone sûre iOS)', async () => {
+        const html = await (await fetch('../index.html')).text();
+        return html.includes('user-scalable=no') && html.includes('maximum-scale=1.0') && html.includes('viewport-fit=cover');
+      });
+      verifier(
+        '#bouton-filtres-mobile est en position fixed (pas absolute — plus robuste face aux changements de viewport)',
+        getComputedStyle(document.getElementById('bouton-filtres-mobile')).position === 'fixed'
+      );
 
       // --- Installabilité PWA (§11) : manifest.json ---
       await verifierAsync('manifest.json est valide et contient les champs requis pour l\'installabilité', async () => {

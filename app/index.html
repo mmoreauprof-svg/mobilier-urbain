@@ -2,7 +2,14 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- user-scalable=no (retour de terrain du 24/08) : empêche le zoom de la
+       PAGE entière (distinct du zoom de la carte Leaflet, qui reste pleinement
+       fonctionnel via ses propres contrôles) — cause probable d'un bug de
+       rendu iOS Safari où la barre d'onglets mobile (position: fixed) se
+       retrouvait rendue hors de la zone visible après un geste de pincement.
+       viewport-fit=cover : nécessaire pour que env(safe-area-inset-bottom)
+       (barre d'accueil iPhone) ait une vraie valeur en CSS ci-dessous. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Mobilier Urbain</title>
   <link rel="stylesheet" href="lib/leaflet/leaflet.css">
   <link rel="stylesheet" href="css/style.css">

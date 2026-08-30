@@ -51,6 +51,24 @@ function ouvrirEcranFichier() {
 
 function fermerEcranFichier() {
   document.getElementById('ecran-fichier').hidden = true;
+  reafficherBarresMobiles();
+}
+
+// Filet de sécurité contre un bug de rendu observé sur le terrain (24/08) :
+// la barre d'onglets et le bouton filtre mobile (position: fixed/absolute)
+// pouvaient se retrouver rendus hors de la zone visible sur iPhone après un
+// zoom de page ou plusieurs cycles d'ouverture/fermeture de panneau — sans
+// qu'aucun code ne les ait explicitement masqués (rien ne touche leur
+// affichage ailleurs dans l'app). Rétablir explicitement display après
+// fermeture d'un panneau force le navigateur à recalculer leur position,
+// plutôt que de faire confiance au CSS seul pour s'auto-corriger.
+function reafficherBarresMobiles() {
+  [document.getElementById('barre-onglets-mobile'), document.getElementById('bouton-filtres-mobile')].forEach((element) => {
+    if (!element) return;
+    element.style.display = 'none';
+    void element.offsetHeight; // force le recalcul de mise en page avant de réafficher
+    element.style.display = '';
+  });
 }
 
 document.getElementById('onglet-carte').addEventListener('click', () => {

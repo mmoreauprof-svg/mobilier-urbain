@@ -189,6 +189,16 @@ Deux concepts d'interface différents selon la taille d'écran, choisis après r
   - **PC uniquement** : le titre du panneau sert de poignée de déplacement (glisser-déposer à la souris), pour repositionner le panneau sans jamais interférer avec les listes déroulantes/champs sous-jacents.
   - **Mobile uniquement** : le panneau s'ajuste dynamiquement au viewport visuel réel (`window.visualViewport`), pas seulement à la taille de la fenêtre — une bannière native du navigateur (ex. demande d'autorisation de géolocalisation) ou le clavier virtuel réduisent l'espace réellement visible sans redimensionner la fenêtre elle-même ; sans cet ajustement, le bas du panneau (boutons Annuler/Enregistrer) pourrait se retrouver masqué.
 
+### 6.6ter Robustesse de la barre d'outils mobile ✅ (24/08, retour de terrain)
+
+**Bug rapporté** : sur iPhone 15, après un certain nombre d'objets créés, la barre d'onglets (et le bouton filtre) disparaissait — app inutilisable, export inaccessible. Un rechargement de la page résolvait temporairement le problème, confirmant un bug de **rendu** (pas de perte de données : tout reste en IndexedDB, indépendant de l'affichage) — probablement lié à `position: fixed`/`absolute` mal repositionnés par Safari iOS après un zoom de page ou plusieurs cycles d'ouverture/fermeture de panneau.
+
+Trois corrections, aucune ne dépend d'un diagnostic à 100% certain (impossible à reproduire à l'identique côté Claude, pas d'iPhone disponible) :
+- **Zoom de page désactivé** (`user-scalable=no, maximum-scale=1.0` dans la balise viewport) : tout le zoom passe désormais exclusivement par les contrôles de la carte Leaflet, éliminant la cause la plus probable à la racine.
+- **Réaffirmation active de la visibilité** (`reafficherBarresMobiles()` dans `app/js/interface.js`) : à chaque fermeture de panneau (création, édition, écran Fichier), la barre d'onglets et le bouton filtre sont explicitement masqués puis réaffichés (avec un recalcul de mise en page forcé entre les deux), plutôt que de faire confiance au CSS seul pour s'auto-corriger — un filet de sécurité qui fonctionne indépendamment de la cause exacte du bug de rendu.
+- **`#bouton-filtres-mobile` en `position: fixed`** plutôt que `absolute` (plus robuste face aux changements de viewport, cohérent avec le reste de l'interface mobile).
+- **Zone sûre iPhone** (`env(safe-area-inset-bottom)`, nécessite `viewport-fit=cover`) ajoutée à la barre d'onglets et aux éléments qui s'ancrent au-dessus (panneau plein écran, bannière de sélection, étiquette du code appareil) — point connexe traité au passage, probablement pas la cause principale mais une vraie amélioration pour les iPhone à barre d'accueil (X et ultérieurs, dont le 15).
+
 ### 6.6bis Raccourcis clavier — saisie en chaîne sur PC ✅ (23/08)
 
 Pour accélérer la saisie répétée de plusieurs objets à la suite (usage PC, sans GPS, généralement par sélection manuelle de points cf. §6.4bis) :
