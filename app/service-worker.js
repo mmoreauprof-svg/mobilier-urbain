@@ -14,7 +14,7 @@
 // en cache (même symptôme que le cache HTTP du navigateur, déjà rencontré plusieurs
 // fois en développement).
 
-const VERSION = 'v4';
+const VERSION = 'v6';
 const CACHE_APP = `mobilier-urbain-app-${VERSION}`;
 const CACHE_TUILES = 'mobilier-urbain-tuiles';
 
@@ -52,6 +52,9 @@ const FICHIERS_APP = [
   'icons/distributeur-sacs.svg',
   'icons/arret-bus.svg',
   'icons/abri-bus.svg',
+  'icons/recyclage-verre.svg',
+  'icons/recyclage-electronique.svg',
+  'icons/recyclage-autre.svg',
   'icons/commerce-occupe.svg',
   'icons/commerce-vacant.svg',
 ];

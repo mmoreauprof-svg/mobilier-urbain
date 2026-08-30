@@ -78,7 +78,7 @@ Le CdC initial recommandait Lambert-93 (EPSG:2154). **Décision : WGS84 (EPSG:43
 - Fond de carte OSM standard, centré par défaut sur Viroflay.
 - Affichage de la position en temps réel (point bleu classique).
 - Affichage des objets déjà enregistrés sous forme de marqueurs, avec icônes stylisées ✅ :
-  - **Mobilier urbain** : une icône distincte par type, avec une couleur de fond propre par type pour une distinction rapide sur la carte (revu le 23/08, affiné le même jour) — **vert foncé** (`#1b5e20`) banc, **orange** (`#e65100`) corbeille, **marron** (`#5d4037`) distributeur de sacs, **bleu clair** (`#29b6f6`) arrêt de bus, **bleu** (`#1a73e8`, inchangé) abri bus.
+  - **Mobilier urbain** : une icône distincte par type, avec une couleur de fond propre par type pour une distinction rapide sur la carte (revu le 23/08, affiné le même jour) — **vert foncé** (`#1b5e20`) banc, **orange** (`#e65100`) corbeille, **marron** (`#5d4037`) distributeur de sacs, **bleu clair** (`#29b6f6`) arrêt de bus, **bleu** (`#1a73e8`, inchangé) abri bus, **violet** (`#7b1fa2`, nouvelle catégorie recyclage du 24/08 — d'abord turquoise `#00695c`, jugé trop proche du vert du banc et du commerce occupé, ajusté le même jour) pour les 3 types de recyclage — même symbole de recyclage classique (3 flèches) pour les 3, distingués par un petit pictogramme superposé (bouteille pour Recyclage verre, puce pour Recyclage électronique, astérisque générique pour Recyclage autre).
   - **Commerce** : une même icône, en **deux couleurs** selon l'état — **vert clair** (`#4caf50`, affiné le 23/08 — plus clair que le vert foncé du banc pour éviter toute confusion) pour Occupé, **rouge** (`#c62828`, revu le 23/08 — auparavant orange) pour Vacant.
 - Fonction de zoom, dezoom, déplacement.
 - **Badge de quantité** ✅ : quand `nombre` > 1 pour un mobilier urbain, un badge numérique se superpose à son icône (coin supérieur droit) indiquant le nombre d'éléments à cet endroit. Pas de badge quand `nombre` = 1 (cas par défaut, le plus courant). Fond **gris neutre** (`#333333`, revu le 23/08 — auparavant rouge) choisi pour rester lisible avec des chiffres blancs sans entrer en conflit visuel avec aucune des couleurs d'icônes ci-dessus.
@@ -87,7 +87,7 @@ Le CdC initial recommandait Lambert-93 (EPSG:2154). **Décision : WGS84 (EPSG:43
 
 Un contrôle sur la carte (bouton "Filtres" en haut à gauche, sous le zoom) permet d'afficher/masquer indépendamment chaque catégorie d'objet, par une case à cocher :
 
-- Les 5 types de mobilier urbain (Banc, Corbeille, Distributeur de sacs, Arrêt de bus, Abri bus).
+- Les 8 types de mobilier urbain (Banc, Corbeille, Distributeur de sacs, Arrêt de bus, Abri bus, Recyclage verre, Recyclage électronique, Recyclage autre).
 - Les commerces, en une seule catégorie (cohérent avec le regroupement retenu pour l'export GPKG, cf. §6.5bis — pas de filtre par `type_commerce` ou par état).
 
 Toutes les catégories sont cochées (visibles) par défaut à l'ouverture. Le filtre agit uniquement sur l'affichage des marqueurs sur la carte ; il ne modifie jamais les données enregistrées.
@@ -103,7 +103,7 @@ Bouton dédié → enregistre la position actuelle → formulaire :
 | Champ | Type | Détail |
 |---|---|---|
 | uid | TEXT | Identifiant unique inter-appareils, automatique (voir §3bis) |
-| type_objet | Liste déroulante | Banc, Corbeille, Distributeur de sacs, Arrêt de bus, Abri bus |
+| type_objet | Liste déroulante | Banc, Corbeille, Distributeur de sacs, Arrêt de bus, Abri bus, Recyclage verre, Recyclage électronique, Recyclage autre (3 derniers ajoutés le 24/08) |
 | etat | Liste déroulante | Bon, Moyen, Mauvais, HS |
 | nombre | Entier | Défaut : 1 |
 | commentaire | Texte libre | Optionnel |
@@ -143,23 +143,24 @@ Sans GPS fiable (PC de développement, ou signal faible en intérieur), la créa
 
 1. **Restauration automatique au démarrage** — ce n'est *pas* un import : à chaque ouverture de l'app, les données déjà saisies sont relues depuis IndexedDB (stockage local du téléphone) et réaffichées sur la carte. Aucune action utilisateur, aucun fichier impliqué.
 
-2. **Export** — bouton dédié → génère un fichier `.gpkg` contenant **6 couches** (voir §6.5bis), téléchargeable/partageable (mail, AirDrop, etc.) depuis le téléphone.
+2. **Export** — bouton dédié → génère un fichier `.gpkg` contenant **9 couches** (voir §6.5bis), téléchargeable/partageable (mail, AirDrop, etc.) depuis le téléphone.
 
 3. **Import d'un fichier externe** — bouton dédié → sélection d'un fichier `.gpkg` (reçu de l'autre téléphone, ou réédité depuis QGIS) → l'app propose un choix explicite :
    - **Remplacer** : le contenu importé remplace entièrement les données locales.
    - **Fusionner** ✅ (revu le 23/08 suite à un usage réel sur le terrain) : un objet dont le `uid` n'existe pas encore localement est ajouté. Un objet dont le `uid` existe déjà localement est **remplacé par la version importée si celle-ci a un `last_update` strictement plus récent** (modification faite sur l'autre appareil après la dernière synchronisation) ; sinon il est ignoré, comme avant. Un message de confirmation détaille le nombre d'objets ajoutés / mis à jour / ignorés.
    - ⚠️ **Suppression non gérée par la fusion** : un objet supprimé sur un appareil n'est jamais retiré des autres lors d'une fusion (l'import n'ajoute/ne met à jour que ce qui est présent dans le fichier — il ne peut pas savoir qu'une absence signifie une suppression). Convention adoptée en attendant mieux : marquer l'objet à retirer par un commentaire "A SUPPRIMER" plutôt que le supprimer directement, puis traiter manuellement dans QGIS lors de la fusion finale des exports des deux appareils.
-   - Ces deux opérations parcourent **les 6 couches du fichier importé**, mais reconsolident toujours vers les **2 bases locales** (`mobilier_urbain`, `commerce`, cf. §6.5bis) — la séparation en couches n'existe que dans le fichier `.gpkg`, jamais dans le stockage local du téléphone.
+   - Ces deux opérations parcourent **les 9 couches du fichier importé**, mais reconsolident toujours vers les **2 bases locales** (`mobilier_urbain`, `commerce`, cf. §6.5bis) — la séparation en couches n'existe que dans le fichier `.gpkg`, jamais dans le stockage local du téléphone.
 
 ### 6.5bis Structure des couches GPKG ✅
 
 Objectif : pouvoir afficher/masquer chaque catégorie indépendamment dans QGIS, en parallèle de l'usage de l'app.
 
-- **Mobilier urbain → 5 couches, une par `type_objet`** : `banc`, `corbeille`, `distributeur_sacs`, `arret_bus`, `abri_bus`. Chaque couche contient les mêmes champs qu'en §6.2 (`uid`, `etat`, `nombre`, `commentaire`, `last_update`, coordonnées) — `type_objet` y est redondant (une seule valeur possible par couche) mais conservé pour simplifier la réimportation.
+- **Mobilier urbain → 8 couches, une par `type_objet`** : `banc`, `corbeille`, `distributeur_sacs`, `arret_bus`, `abri_bus`, `recyclage_verre`, `recyclage_electronique`, `recyclage_autre` (3 dernières ajoutées le 24/08). Chaque couche contient les mêmes champs qu'en §6.2 (`uid`, `etat`, `nombre`, `commentaire`, `last_update`, coordonnées) — `type_objet` y est redondant (une seule valeur possible par couche) mais conservé pour simplifier la réimportation.
 - **Commerce → 1 couche unique**, `commerce`, tous types confondus. `type_commerce` et `etat` (Occupé/Vacant) restent de simples attributs de cette couche, filtrables et stylables dans QGIS sans séparation physique en plusieurs fichiers/tables.
 - **Noms techniques** : en ASCII, minuscules, underscores — plus sûrs pour la compatibilité SIG que des accents ou espaces. L'affichage dans QGIS peut néanmoins rester en français lisible via le champ `identifier` du GeoPackage (métadonnée de la couche, distincte du nom technique de table) : ex. table `banc` → identifiant affiché « Bancs ».
-- **Identifiants** : `uid` (texte, dédoublonnage) et `fid` (entier, imposé par GeoPackage) suivent les mêmes règles que définies en §3bis, appliquées indépendamment dans chacune des 6 tables.
-- Cette séparation en couches est **propre au fichier `.gpkg`** : le stockage local (IndexedDB) reste organisé en 2 bases seulement (`mobilier_urbain`, `commerce`), comme décrit en §3 — l'export répartit vers les 6 couches, l'import consolide depuis les 6 couches vers les 2 bases.
+- **Identifiants** : `uid` (texte, dédoublonnage) et `fid` (entier, imposé par GeoPackage) suivent les mêmes règles que définies en §3bis, appliquées indépendamment dans chacune des 9 tables.
+- Cette séparation en couches est **propre au fichier `.gpkg`** : le stockage local (IndexedDB) reste organisé en 2 bases seulement (`mobilier_urbain`, `commerce`), comme décrit en §3 — l'export répartit vers les 9 couches, l'import consolide depuis les 9 couches vers les 2 bases.
+- **Ajout du 24/08 (catégorie recyclage)** : les 3 nouvelles couches s'ajoutent en fin de liste, sans modifier ni renommer les 6 couches existantes — un fichier `.gpkg` exporté avant cet ajout reste importable sans perte, et les mobiliers déjà enregistrés localement (types antérieurs) ne sont en rien affectés.
 
 **Note technique — bugs de `geopackage-js` 4.2.8 contournés** ✅ : la librairie vendorisée a deux bugs sous son adaptateur navigateur (sql.js), découverts et contournés à l'implémentation :
 1. `dao.create()`/`addGeoJSONFeatureToGeoPackage()` omettent certains paramètres nommés de la requête SQL générée (`$id`, `$geometry`...), que sql.js refuse. Contournement : écriture en SQL brut (`gp.connection.insert`) avec tous les paramètres explicitement fournis, géométrie (points uniquement) encodée à la main au format GeoPackageBinary plutôt que via la classe `Geometry` de la librairie.
@@ -204,7 +205,7 @@ Trois corrections, aucune ne dépend d'un diagnostic à 100% certain (impossible
 Pour accélérer la saisie répétée de plusieurs objets à la suite (usage PC, sans GPS, généralement par sélection manuelle de points cf. §6.4bis) :
 
 - `M` / `C` ouvrent directement « + Mobilier urbain » / « + Commerce », sans viser la barre d'outils à la souris.
-- `1` à `5` sélectionnent le type de mobilier urbain (dans l'ordre de la liste déroulante) pendant que le panneau mobilier est ouvert, sans passer par la liste.
+- `1` à `8` sélectionnent le type de mobilier urbain (dans l'ordre de la liste déroulante, étendu de 1-5 à 1-8 le 24/08 avec l'ajout de la catégorie recyclage) pendant que le panneau mobilier est ouvert, sans passer par la liste.
 - **PC uniquement** (`estAffichagePC()`) et **jamais actifs si le focus est dans un champ texte/liste/commentaire** — condition essentielle : sans elle, taper ces caractères au clavier (y compris virtuel, sur mobile) déclencherait les raccourcis au lieu de saisir le texte. Combinaisons avec Ctrl/Cmd/Alt ignorées (pour ne pas interférer avec les raccourcis du navigateur/système).
 - Volontairement limité aux raccourcis : la ré-ouverture automatique du panneau et le pré-remplissage du dernier type saisi, envisagés puis écartés, auraient risqué d'altérer l'expérience sur Android/iPhone (l'utilisateur souhaitait une solution strictement PC).
 

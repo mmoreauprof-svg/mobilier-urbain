@@ -1,7 +1,7 @@
 // Filtre d'affichage par catégorie sur la carte (§6.1quater des spécifications)
 // N'agit que sur l'affichage des marqueurs — aucune donnée n'est modifiée.
 
-const CATEGORIES_FILTRE = ['Banc', 'Corbeille', 'Distributeur de sacs', 'Arrêt de bus', 'Abri bus', 'Commerce'];
+const CATEGORIES_FILTRE = ['Banc', 'Corbeille', 'Distributeur de sacs', 'Arrêt de bus', 'Abri bus', 'Recyclage verre', 'Recyclage électronique', 'Recyclage autre', 'Commerce'];
 const categoriesVisibles = new Set(CATEGORIES_FILTRE);
 
 function appliquerFiltres() {

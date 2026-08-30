@@ -6,7 +6,10 @@ const FICHIERS_ICONE_MOBILIER = {
   'Corbeille': 'icons/corbeille.svg',
   'Distributeur de sacs': 'icons/distributeur-sacs.svg',
   'Arrêt de bus': 'icons/arret-bus.svg',
-  'Abri bus': 'icons/abri-bus.svg'
+  'Abri bus': 'icons/abri-bus.svg',
+  'Recyclage verre': 'icons/recyclage-verre.svg',
+  'Recyclage électronique': 'icons/recyclage-electronique.svg',
+  'Recyclage autre': 'icons/recyclage-autre.svg'
 };
 
 function construireIcone(url) {

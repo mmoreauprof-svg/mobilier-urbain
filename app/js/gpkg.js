@@ -25,7 +25,13 @@ const COUCHES_MOBILIER = [
   { type: 'Corbeille', table: 'corbeille', identifiant: 'Corbeilles' },
   { type: 'Distributeur de sacs', table: 'distributeur_sacs', identifiant: 'Distributeurs de sacs' },
   { type: 'Arrêt de bus', table: 'arret_bus', identifiant: 'Arrêts de bus' },
-  { type: 'Abri bus', table: 'abri_bus', identifiant: 'Abris bus' }
+  { type: 'Abri bus', table: 'abri_bus', identifiant: 'Abris bus' },
+  // Nouvelle catégorie recyclage (24/08), ajoutée en fin de liste : les 3
+  // nouveaux types ne remplacent ni ne renomment rien, donc aucun impact sur
+  // les mobiliers déjà enregistrés (ni en local, ni dans un .gpkg existant).
+  { type: 'Recyclage verre', table: 'recyclage_verre', identifiant: 'Recyclage verre' },
+  { type: 'Recyclage électronique', table: 'recyclage_electronique', identifiant: 'Recyclage électronique' },
+  { type: 'Recyclage autre', table: 'recyclage_autre', identifiant: 'Recyclage autre' }
 ];
 
 const CHAMPS_MOBILIER = ['uid', 'type_objet', 'etat', 'nombre', 'commentaire', 'last_update'];
@@ -147,7 +153,7 @@ function lireCouche(gp, table, champs, champsObligatoires, champTypeAVerifier, v
   return { objets, compteurs };
 }
 
-// --- Construction / lecture d'un GeoPackage complet (6 couches, §6.5bis) ---
+// --- Construction / lecture d'un GeoPackage complet (9 couches — 8 mobilier + 1 commerce, §6.5bis) ---
 
 async function construireGpkg() {
   const gp = await window.GeoPackage.GeoPackageAPI.create();

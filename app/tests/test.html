@@ -40,6 +40,9 @@
       <label><input type="checkbox" class="case-filtre" data-categorie="Distributeur de sacs" checked></label>
       <label><input type="checkbox" class="case-filtre" data-categorie="Arrêt de bus" checked></label>
       <label><input type="checkbox" class="case-filtre" data-categorie="Abri bus" checked></label>
+      <label><input type="checkbox" class="case-filtre" data-categorie="Recyclage verre" checked></label>
+      <label><input type="checkbox" class="case-filtre" data-categorie="Recyclage électronique" checked></label>
+      <label><input type="checkbox" class="case-filtre" data-categorie="Recyclage autre" checked></label>
       <label><input type="checkbox" class="case-filtre" data-categorie="Commerce" checked></label>
     </div>
 
@@ -73,6 +76,9 @@
           <option>Distributeur de sacs</option>
           <option>Arrêt de bus</option>
           <option>Abri bus</option>
+          <option>Recyclage verre</option>
+          <option>Recyclage électronique</option>
+          <option>Recyclage autre</option>
         </select>
         <select id="mobilier-etat">
           <option>Bon</option>
@@ -366,7 +372,10 @@
           'Corbeille': 'corbeille',
           'Distributeur de sacs': 'distributeur-sacs',
           'Arrêt de bus': 'arret-bus',
-          'Abri bus': 'abri-bus'
+          'Abri bus': 'abri-bus',
+          'Recyclage verre': 'recyclage-verre',
+          'Recyclage électronique': 'recyclage-electronique',
+          'Recyclage autre': 'recyclage-autre'
         }).every(([type, fichier]) => iconeMobilier(type).options.iconUrl === `icons/${fichier}.svg`)
       );
       verifier(
@@ -1370,7 +1379,7 @@
 
       // --- Export / Import GeoPackage (§6.5, §6.5bis — étapes 9-10) ---
 
-      await verifierAsync('gpkg : export produit 6 couches avec identifiants QGIS et données correctes', async () => {
+      await verifierAsync('gpkg : export produit 9 couches (8 mobilier + 1 commerce) avec identifiants QGIS et données correctes', async () => {
         await viderStore('mobilier_urbain');
         await viderStore('commerce');
         await enregistrerMobilierUrbain({ uid: 'TST-G1', type_objet: 'Banc', etat: 'Bon', nombre: 2, commentaire: 'Export test', last_update: new Date().toISOString(), lat: 48.80, lon: 2.16 });
@@ -1383,7 +1392,7 @@
         const releve = lireGpkg(gp);
         gp.close();
 
-        const tablesAttendues = JSON.stringify(['abri_bus', 'arret_bus', 'banc', 'commerce', 'corbeille', 'distributeur_sacs']);
+        const tablesAttendues = JSON.stringify(['abri_bus', 'arret_bus', 'banc', 'commerce', 'corbeille', 'distributeur_sacs', 'recyclage_autre', 'recyclage_electronique', 'recyclage_verre']);
         return JSON.stringify(tables) === tablesAttendues
           && identifiantBanc === 'Bancs'
           && releve.mobiliers.length === 1 && releve.mobiliers[0].uid === 'TST-G1'
@@ -1816,6 +1825,9 @@
           'distributeur-sacs.svg': '#5d4037',
           'arret-bus.svg': '#29b6f6',
           'abri-bus.svg': '#1a73e8',
+          'recyclage-verre.svg': '#7b1fa2',
+          'recyclage-electronique.svg': '#7b1fa2',
+          'recyclage-autre.svg': '#7b1fa2',
           'commerce-occupe.svg': '#4caf50',
           'commerce-vacant.svg': '#c62828'
         };
@@ -1824,6 +1836,76 @@
           return texte.toLowerCase().includes(couleur.toLowerCase());
         }));
         return resultats.every(Boolean);
+      });
+
+      // --- Nouvelle catégorie recyclage (24/08) : ajout de 3 types de mobilier
+      // en fin de liste (Recyclage verre/électronique/autre) ---
+      verifier(
+        'filtres : les 3 nouvelles catégories recyclage sont présentes et visibles par défaut',
+        ['Recyclage verre', 'Recyclage électronique', 'Recyclage autre'].every(
+          (categorie) => CATEGORIES_FILTRE.includes(categorie) && categoriesVisibles.has(categorie)
+        )
+      );
+      verifier(
+        'raccourcis clavier PC : 6/7/8 sélectionnent les 3 types recyclage (extension de 1-5 à 1-8)',
+        (() => {
+          const original = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+          Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
+          onPositionRecue({ coords: { latitude: 69, longitude: 69 } });
+          if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+
+          document.getElementById('bouton-ajouter-mobilier').click();
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: '6', bubbles: true, cancelable: true }));
+          const t6 = document.getElementById('mobilier-type').value === 'Recyclage verre';
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: '7', bubbles: true, cancelable: true }));
+          const t7 = document.getElementById('mobilier-type').value === 'Recyclage électronique';
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: '8', bubbles: true, cancelable: true }));
+          const t8 = document.getElementById('mobilier-type').value === 'Recyclage autre';
+          fermerFormulaireMobilier();
+
+          Object.defineProperty(window, 'innerWidth', original);
+          return t6 && t7 && t8;
+        })()
+      );
+      await verifierAsync('gpkg : les 3 nouveaux types recyclage s\'exportent et se réimportent fidèlement (comme les 5 types existants)', async () => {
+        await viderStore('mobilier_urbain');
+        const maintenant = '2026-08-24T12:00:00.000Z';
+        const sources = [
+          { uid: 'TST-RECY-1', type_objet: 'Recyclage verre', etat: 'Bon', nombre: 1, commentaire: '', last_update: maintenant, lat: 48.85, lon: 2.21 },
+          { uid: 'TST-RECY-2', type_objet: 'Recyclage électronique', etat: 'Bon', nombre: 1, commentaire: '', last_update: maintenant, lat: 48.86, lon: 2.22 },
+          { uid: 'TST-RECY-3', type_objet: 'Recyclage autre', etat: 'Moyen', nombre: 2, commentaire: 'Test', last_update: maintenant, lat: 48.87, lon: 2.23 }
+        ];
+        for (const o of sources) await enregistrerMobilierUrbain(o);
+
+        const buffer = await construireGpkg();
+        const gp = await window.GeoPackage.GeoPackageAPI.open(new Uint8Array(buffer));
+        const releve = lireGpkg(gp);
+        gp.close();
+
+        return sources.every((source) => {
+          const relu = releve.mobiliers.find((m) => m.uid === source.uid);
+          return relu && relu.type_objet === source.type_objet && relu.etat === source.etat && relu.nombre === source.nombre;
+        }) && releve.compteurs.typeNonReconnu === 0;
+      });
+
+      // --- Point d'attention explicite de la demande : les mobiliers déjà
+      // enregistrés (types existants avant cet ajout) ne doivent subir aucun
+      // impact — vérifié par un aller-retour complet sur un type "ancien". ---
+      await verifierAsync('gpkg : un mobilier d\'un type déjà existant (créé avant l\'ajout du recyclage) reste inchangé à l\'export/import', async () => {
+        await viderStore('mobilier_urbain');
+        const ancien = { uid: 'TST-COMPAT-1', type_objet: 'Corbeille', etat: 'Bon', nombre: 1, commentaire: 'Existant avant le 24/08', last_update: '2026-08-01T00:00:00.000Z', lat: 48.88, lon: 2.24 };
+        await enregistrerMobilierUrbain(ancien);
+        afficherMarqueurMobilier(ancien);
+
+        const buffer = await construireGpkg();
+        const gp = await window.GeoPackage.GeoPackageAPI.open(new Uint8Array(buffer));
+        const releve = lireGpkg(gp);
+        gp.close();
+
+        const relu = releve.mobiliers.find((m) => m.uid === 'TST-COMPAT-1');
+        return !!relu && relu.type_objet === 'Corbeille' && relu.etat === 'Bon'
+          && relu.commentaire === 'Existant avant le 24/08'
+          && iconeMobilier('Corbeille').options.iconUrl === 'icons/corbeille.svg'; // icône inchangée
       });
 
       // --- Retour de terrain du 24/08 : chaque point de fermeture de panneau

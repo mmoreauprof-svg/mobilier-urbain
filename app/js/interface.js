@@ -165,7 +165,7 @@ function focusDansChampEditable() {
   return !!actif && ['INPUT', 'TEXTAREA', 'SELECT'].includes(actif.tagName);
 }
 
-const TOUCHES_TYPE_MOBILIER = ['1', '2', '3', '4', '5'];
+const TOUCHES_TYPE_MOBILIER = ['1', '2', '3', '4', '5', '6', '7', '8'];
 
 document.addEventListener('keydown', (evenement) => {
   if (!estAffichagePC() || focusDansChampEditable()) return;
