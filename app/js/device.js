@@ -18,6 +18,18 @@ function codeAppareilValide(code) {
 
 const CLE_COMPTEUR_LOCAL = (typeof CLE_COMPTEUR_LOCAL_OVERRIDE !== 'undefined') ? CLE_COMPTEUR_LOCAL_OVERRIDE : 'mobilierUrbain_compteurLocal';
 
+// Async depuis le 24/08 (rapport d'audit, point 1) : lire compteurLocal,
+// l'incrémenter puis le réécrire dans localStorage est trois opérations non
+// atomiques. localStorage est partagé entre tous les onglets d'une même
+// origine — si l'app était ouverte dans deux onglets du même appareil et
+// qu'un objet était enregistré depuis chacun à quelques millisecondes
+// d'intervalle, les deux pouvaient lire la même valeur avant que l'un des
+// deux ne l'ait réécrite, produisant deux objets différents avec le même
+// uid (silencieux : la collision ne se serait révélée qu'à la fusion GPKG).
+// navigator.locks (Web Locks API) sérialise ce bloc entre onglets quand le
+// navigateur le supporte ; repli sans verrou sinon — comportement identique
+// à avant cette correction, aucune régression pour un navigateur qui ne le
+// supporterait pas.
 function genererUid() {
   const code = getCodeAppareil();
   if (!code) {
@@ -26,9 +38,17 @@ function genererUid() {
     // indiscernables des uid valides lors de la fusion QGIS.
     throw new Error('Code appareil manquant');
   }
-  const compteur = parseInt(localStorage.getItem(CLE_COMPTEUR_LOCAL) || '0', 10) + 1;
-  localStorage.setItem(CLE_COMPTEUR_LOCAL, String(compteur));
-  return `${code}-${String(compteur).padStart(3, '0')}`;
+
+  const genererDepuisCompteur = () => {
+    const compteur = parseInt(localStorage.getItem(CLE_COMPTEUR_LOCAL) || '0', 10) + 1;
+    localStorage.setItem(CLE_COMPTEUR_LOCAL, String(compteur));
+    return `${code}-${String(compteur).padStart(3, '0')}`;
+  };
+
+  if (navigator.locks && navigator.locks.request) {
+    return navigator.locks.request(CLE_COMPTEUR_LOCAL, () => genererDepuisCompteur());
+  }
+  return Promise.resolve(genererDepuisCompteur());
 }
 
 function afficherCodeAppareil(code) {

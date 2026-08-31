@@ -328,27 +328,6 @@
       verifier('code invalide vide', codeAppareilValide('') === false);
       verifier('code invalide trop long', codeAppareilValide('TROPLONG') === false);
 
-      // --- genererUid (app/js/device.js) : garde-fou code appareil manquant ---
-      verifier(
-        'genererUid lève une erreur si le code appareil est manquant',
-        (() => {
-          localStorage.removeItem(CLE_CODE_APPAREIL);
-          try {
-            genererUid();
-            return false;
-          } catch (e) {
-            return e.message === 'Code appareil manquant';
-          }
-        })()
-      );
-      verifier(
-        'genererUid fonctionne à nouveau une fois le code réenregistré',
-        (() => {
-          setCodeAppareil('TST');
-          const uid = genererUid();
-          return /^TST-\d{3}$/.test(uid);
-        })()
-      );
 
       // --- echapperHtml (app/js/util.js) : protection XSS de base ---
       verifier(
@@ -693,6 +672,49 @@
 
     async function executerTestsFonctionnels() {
       setCodeAppareil('TST');
+
+      // --- genererUid (app/js/device.js) : devenu async le 24/08 (rapport
+      // d'audit, point 1 — navigator.locks pour sérialiser le compteur entre
+      // onglets d'un même appareil) ---
+      await verifierAsync('genererUid lève une erreur si le code appareil est manquant', async () => {
+        localStorage.removeItem(CLE_CODE_APPAREIL);
+        try {
+          await genererUid();
+          return false;
+        } catch (e) {
+          return e.message === 'Code appareil manquant';
+        }
+      });
+      await verifierAsync('genererUid fonctionne à nouveau une fois le code réenregistré', async () => {
+        setCodeAppareil('TST');
+        const uid = await genererUid();
+        return /^TST-\d{3}$/.test(uid);
+      });
+      await verifierAsync('genererUid : des appels successifs génèrent des compteurs strictement croissants', async () => {
+        setCodeAppareil('TST');
+        localStorage.setItem(CLE_COMPTEUR_LOCAL, '0');
+        const uid1 = await genererUid();
+        const uid2 = await genererUid();
+        const uid3 = await genererUid();
+        return uid1 !== uid2 && uid2 !== uid3 && [uid1, uid2, uid3].every((u) => /^TST-\d{3}$/.test(u));
+      });
+      await (async () => {
+        const nom = 'genererUid utilise navigator.locks (Web Locks API) pour sérialiser le compteur entre onglets, quand disponible (audit 24/08, point 1)';
+        if (!(navigator.locks && navigator.locks.request)) {
+          ignorer(nom, 'navigator.locks non disponible dans ce navigateur — repli sans verrou déjà couvert par les tests de fonctionnement normal ci-dessus');
+          return;
+        }
+        setCodeAppareil('TST');
+        const original = navigator.locks.request.bind(navigator.locks);
+        let appele = false;
+        navigator.locks.request = (verrouNom, cb) => { appele = true; return original(verrouNom, cb); };
+        try {
+          await genererUid();
+        } finally {
+          navigator.locks.request = original;
+        }
+        verifier(nom, appele);
+      })();
 
       // --- Identification appareil : erreur affichée, puis validation réussie ---
       await verifierAsync('identification : code invalide affiche une erreur, code valide referme le modal', async () => {

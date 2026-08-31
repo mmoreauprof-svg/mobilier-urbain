@@ -139,7 +139,7 @@ async function enregistrerMobilierDepuisFormulaire() {
     }
 
     const objet = {
-      uid: genererUid(),
+      uid: await genererUid(),
       type_objet: typeObjet,
       etat,
       nombre,

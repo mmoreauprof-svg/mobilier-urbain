@@ -14,6 +14,7 @@ Le recensement des commerces vise en particulier à **identifier les locaux comm
 - La fusion des relevés des deux téléphones se fait **manuellement dans QGIS**, à partir des fichiers `.gpkg` exportés par chacun.
 - Pas de publication sur un store (Play Store / App Store).
 - Utilisation **hors-ligne pendant la saisie sur le terrain** ✅ (revu le 2026-08-23, cf. §4) : une connexion est nécessaire pour installer l'app et pour récupérer les mises à jour, mais pas pour l'utiliser une fois installée.
+- ⚠️ **Limite de vie privée connue et acceptée** (rapport d'audit du 23/08, point 2) : chaque tuile de carte affichée est demandée directement au serveur de tuiles OpenStreetMap, avec les coordonnées de la zone visible dans l'URL — comportement standard de l'usage direct d'OSM, pas un défaut d'implémentation. Cela signifie que le serveur de tuiles (et tout observateur du trafic réseau) peut déduire la position approximative de l'utilisateur à chaque affichage de carte, y compris hors d'une saisie. Décision assumée : aucune donnée de relevé n'est concernée (elle reste locale, cf. ci-dessus), seul l'usage normal de la carte l'est.
 
 ## 3. Architecture technique ✅
 
@@ -29,6 +30,8 @@ Le recensement des commerces vise en particulier à **identifier les locaux comm
 
 **Outillage de développement** ✅ : pas de bundler ni de framework — HTML/CSS/JS natifs (modules JS du navigateur), dans la continuité de votre pratique HTML historique. Les librairies (Leaflet, geopackage-js) sont téléchargées une fois et rangées dans le projet, sans dépendance à un CDN à l'usage. Serveur local de test : `python -m http.server` (Python déjà installé) — pas besoin de Node.js.
 
+⚠️ **Conséquence assumée** (rapport d'audit du 23/08, point 4) : sans gestionnaire de paquets ni bundler, aucun outil type `npm audit` n'est disponible pour vérifier automatiquement les vulnérabilités des librairies vendorisées (Leaflet 1.9.4, geopackage-js/sql.js 4.2.8). Une vérification manuelle périodique (avis de sécurité publiés pour ces versions précises) est recommandée, à faire à l'occasion plutôt que selon un calendrier fixe.
+
 ### 3bis. Identifiants uniques entre les deux téléphones ✅
 
 Deux téléphones saisissant en parallèle vont chacun générer des identifiants — il faut garantir qu'ils ne se chevauchent jamais lors de la fusion dans QGIS.
@@ -38,6 +41,7 @@ Deux téléphones saisissant en parallèle vont chacun générer des identifiant
 - **`code_appareil`** : un court libellé (2-4 lettres) saisi une seule fois, au premier lancement de l'app sur chaque téléphone (ex. initiales de la personne). Stocké localement, jamais redemandé ensuite.
 - **`compteur_local`** : entier auto-incrémenté séparément sur chaque téléphone — pas de coordination nécessaire entre les deux appareils.
 - Le `uid` est utilisé pour tout le dédoublonnage (import fusionné, avertissement de proximité). Le `fid` GPKG n'est là que pour satisfaire le format du fichier.
+- **Protection contre les collisions entre onglets d'un même appareil** ✅ (24/08, rapport d'audit point 1) : `genererUid()` (`app/js/device.js`) sérialise la lecture-incrémentation-écriture du compteur via `navigator.locks` (Web Locks API) quand le navigateur le supporte, pour empêcher que deux onglets ouverts en parallèle sur le même appareil ne lisent la même valeur avant que l'un des deux ne l'ait réécrite (collision silencieuse, révélée seulement à la fusion GPKG). Repli sans verrou sur un navigateur qui ne le supporterait pas — comportement identique à avant cette correction.
 
 ### 3ter. Installabilité PWA ✅ (étape 11)
 

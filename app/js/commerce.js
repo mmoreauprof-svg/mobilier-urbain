@@ -143,7 +143,7 @@ async function enregistrerCommerceDepuisFormulaire() {
     }
 
     const objet = {
-      uid: genererUid(),
+      uid: await genererUid(),
       nom_commerce: nomCommerce,
       type_commerce: typeCommerce,
       etat,
