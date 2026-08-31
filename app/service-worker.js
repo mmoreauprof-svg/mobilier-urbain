@@ -14,7 +14,7 @@
 // en cache (même symptôme que le cache HTTP du navigateur, déjà rencontré plusieurs
 // fois en développement).
 
-const VERSION = 'v7';
+const VERSION = 'v8';
 const CACHE_APP = `mobilier-urbain-app-${VERSION}`;
 const CACHE_TUILES = 'mobilier-urbain-tuiles';
 

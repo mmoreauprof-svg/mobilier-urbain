@@ -295,3 +295,15 @@ Rapport basé sur `GuideCommunRelectureCode.md`, appliqué au 23/08 (lecture de 
 4. **Absence d'audit automatisé des dépendances vendorisées** (documenté) — pas d'outil possible sans gestionnaire de paquets (choix assumé) ; recommandation de vérification manuelle périodique ajoutée à `Specifications.md` §3.
 
 4 nouveaux tests (point 1). **Suite complète : 116/116 tests OK** (+ 1 ignoré), rejouée deux fois de suite. Vérification manuelle complémentaire sur l'app réelle : création d'un mobilier confirmée fonctionnelle de bout en bout avec le nouveau chemin async (`uid` généré correctement, `navigator.locks` disponible et exercé). Service worker passé en `v7`.
+
+## Recentrage manuel sur la position GPS (2026-08-30)
+
+Cf. Specifications.md §6.1quinquies. Nouvelle fonction `recentrerSurPosition()` (`app/js/position.js`), câblée sur les deux boutons "Recentrer" (PC et mobile, `index.html`/`style.css`). 3 nouveaux tests fonctionnels :
+
+- Un clic recentre bien la carte sur la dernière position GPS connue après qu'elle ait été déplacée ailleurs (bouton PC).
+- Le niveau de zoom courant est conservé, pas réinitialisé à `ZOOM_DEFAUT` (bouton mobile).
+- Sans aucune position GPS connue, un clic affiche la bannière "Position GPS indisponible — impossible de recentrer la carte." sans agir sur la carte.
+
+**Bug de test trouvé et corrigé en cours de route** (pas un bug de l'app) : le test de conservation du zoom échouait de façon reproductible (2 exécutions consécutives, même échec précis) — diagnostiqué par isolation manuelle dans la console : un `map.setView(mêmeCentre, zoomDifférent)` part sur le chemin animé de Leaflet, qui ne se termine jamais de façon synchrone dans le conteneur carte minuscule (1×1 px) du harnais de test caché, laissant `getZoom()` renvoyer l'ancien zoom juste après l'appel. Corrigé en passant `{ animate: false }` à l'appel de préparation du test (comportement de `recentrerSurPosition()` lui-même non modifié) et en attendant la condition via `attendreCondition()` par sécurité. Sans impact sur l'usage réel, où le conteneur carte est visible à sa taille normale.
+
+**Suite complète : 119/119 tests OK** (+ 1 ignoré), rejouée deux fois de suite après correction. Vérification manuelle complémentaire sur l'app réelle (PC et mobile, via l'outil navigateur de Claude) : bouton "Recentrer" visible aux deux formats, clic sans position GPS déclenchant bien la bannière d'erreur attendue (confirmé dans les deux cas — la géolocalisation est refusée par défaut dans l'outil navigateur de Claude, ce qui a permis de vérifier ce chemin directement en conditions réelles plutôt que simulé).

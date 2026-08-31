@@ -45,6 +45,21 @@ function onPositionErreur(erreur) {
   }
 }
 
+// Recentrage manuel sur la position GPS (bouton dédié, PC et mobile) —
+// distinct du recentrage automatique ci-dessus qui ne joue qu'au tout
+// premier relevé : ici, l'utilisateur redemande explicitement à tout moment.
+function recentrerSurPosition() {
+  const position = getDernierePosition();
+  if (!position) {
+    afficherBanniereErreur('Position GPS indisponible — impossible de recentrer la carte.');
+    return;
+  }
+  map.setView(position, map.getZoom());
+}
+
+document.getElementById('bouton-recentrer').addEventListener('click', recentrerSurPosition);
+document.getElementById('bouton-recentrer-mobile').addEventListener('click', recentrerSurPosition);
+
 if ('geolocation' in navigator) {
   navigator.geolocation.watchPosition(onPositionRecue, onPositionErreur, {
     enableHighAccuracy: true,

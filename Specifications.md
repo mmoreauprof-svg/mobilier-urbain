@@ -96,6 +96,10 @@ Un contrôle sur la carte (bouton "Filtres" en haut à gauche, sous le zoom) per
 
 Toutes les catégories sont cochées (visibles) par défaut à l'ouverture. Le filtre agit uniquement sur l'affichage des marqueurs sur la carte ; il ne modifie jamais les données enregistrées.
 
+### 6.1quinquies Recentrage manuel sur la position GPS ✅ (30/08)
+
+Un bouton dédié ("Recentrer", à côté de "Filtres" sur PC, empilé juste en dessous du bouton flottant "Filtres" sur mobile) recentre la carte sur la dernière position GPS connue, à tout moment sur demande de l'utilisateur — distinct du recentrage automatique du §6.1 qui ne joue qu'au tout premier relevé GPS de la session, pour ne pas gêner une carte déjà déplacée/zoomée volontairement. Le niveau de zoom courant est conservé (seul le centre change). Si aucune position GPS n'a encore été reçue, un clic affiche la bannière d'erreur habituelle ("Position GPS indisponible — impossible de recentrer la carte.") au lieu de recentrer sur une position inexistante.
+
 ### 6.1bis Détection de doublon ✅
 Lors d'une nouvelle saisie, si un objet du **même type** existe déjà à **moins de 5 mètres**, un avertissement s'affiche avant l'enregistrement ("Un [type] existe déjà à proximité — enregistrer quand même ?"). Le seuil (5 m) est un paramètre modifiable dans le code, pas une saisie utilisateur.
 
