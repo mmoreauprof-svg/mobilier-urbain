@@ -11,3 +11,6 @@ Thumbs.db
 
 # Config locale Claude Code
 .claude/settings.local.json
+
+# Outillage de génération des présentations PowerPoint, hors périmètre de la PWA
+Présentation/
