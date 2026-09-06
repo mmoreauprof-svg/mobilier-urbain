@@ -45,6 +45,7 @@ function definirOngletActif(nom) {
 }
 
 function ouvrirEcranFichier() {
+  annulerSelectionCarteSiActive(); // cf. map.js — même risque que pour les panneaux mobilier/commerce
   document.getElementById('ecran-fichier').hidden = false;
   definirOngletActif('fichier');
 }

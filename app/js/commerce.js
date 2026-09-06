@@ -3,20 +3,34 @@
 const commerceMarkers = {};
 let uidEnEditionCommerce = null;
 let positionManuelleCommerce = null;
+// Nouvel emplacement en attente de confirmation lors d'une modification
+// (§6.4ter, demande du 31/08) — distinct de positionManuelleCommerce (création
+// sans GPS) : reste null tant que "Modifier l'emplacement" n'a pas abouti.
+let nouvellePositionCommerce = null;
 // Dernier type créé (PC uniquement, §C/saisie en chaîne — demande du 23/08) :
 // pré-rempli à la prochaine création plutôt que de repartir sur "Supérette",
 // utile pour enchaîner de nombreux commerces du même type sans repasser par
 // la liste.
 let dernierTypeCommerce = null;
 
+// uid inséré via data-uid, cf. le commentaire équivalent dans mobilier.js
+// (relecture du 06/09) — même raisonnement, même correctif.
 function construirePopupCommerce(objet) {
   const nom = objet.nom_commerce ? echapperHtml(objet.nom_commerce) : '(local sans enseigne)';
   const dateFermetureHtml = objet.date_fermeture ? `<br>Fermé depuis : ${echapperHtml(objet.date_fermeture)}` : '';
   const commentaireHtml = objet.commentaire ? `<br>${echapperHtml(objet.commentaire)}` : '';
+  const uid = echapperAttribut(objet.uid);
   return `<strong>${nom}</strong><br>${echapperHtml(objet.type_commerce)}<br>État : ${echapperHtml(objet.etat)}${dateFermetureHtml}${commentaireHtml}<br>`
-    + `<button onclick="ouvrirEditionCommerce('${objet.uid}')">Modifier</button> `
-    + `<button onclick="supprimerCommerce('${objet.uid}')">Supprimer</button>`;
+    + `<button data-uid="${uid}" data-action="modifier-commerce">Modifier</button> `
+    + `<button data-uid="${uid}" data-action="supprimer-commerce">Supprimer</button>`;
 }
+
+document.getElementById('map').addEventListener('click', (evenement) => {
+  const bouton = evenement.target.closest('[data-action="modifier-commerce"], [data-action="supprimer-commerce"]');
+  if (!bouton) return;
+  if (bouton.dataset.action === 'modifier-commerce') ouvrirEditionCommerce(bouton.dataset.uid);
+  else supprimerCommerce(bouton.dataset.uid);
+});
 
 function afficherMarqueurCommerce(objet) {
   const marker = L.marker([objet.lat, objet.lon], { icon: iconeCommerce(objet.etat) }).addTo(map);
@@ -29,6 +43,7 @@ function afficherMarqueurCommerce(objet) {
 function mettreAJourMarqueurCommerce(objet) {
   const marker = commerceMarkers[objet.uid];
   if (marker) {
+    marker.setLatLng([objet.lat, objet.lon]);
     marker.setIcon(iconeCommerce(objet.etat));
     marker.setPopupContent(construirePopupCommerce(objet));
   }
@@ -45,10 +60,16 @@ function ouvrirFormulaireCommerce() {
 }
 
 function ouvrirFormulaireCommerceNouveau(positionManuelle) {
+  // Annule une sélection "Modifier l'emplacement" restée en attente sur un
+  // AUTRE objet (relecture du 06/09) — cf. commentaire équivalent dans mobilier.js.
+  annulerSelectionCarteSiActive();
   positionManuelleCommerce = positionManuelle;
   uidEnEditionCommerce = null;
+  nouvellePositionCommerce = null;
   document.getElementById('titre-modal-commerce').textContent = 'Nouveau commerce';
   document.getElementById('bouton-enregistrer-commerce').textContent = 'Enregistrer';
+  document.getElementById('bouton-modifier-emplacement-commerce').hidden = true;
+  document.getElementById('commerce-position-statut').textContent = '';
   const panneau = document.getElementById('modal-commerce');
   panneau.hidden = false;
   positionnerPanneauFormulaire(panneau, positionManuelle || getDernierePosition());
@@ -67,20 +88,25 @@ function ouvrirFormulaireCommerceNouveau(positionManuelle) {
 }
 
 function fermerFormulaireCommerce() {
+  annulerSelectionCarteSiActive(); // cf. commentaire dans ouvrirFormulaireCommerceNouveau
   document.getElementById('modal-commerce').hidden = true;
   document.getElementById('form-commerce').reset();
   uidEnEditionCommerce = null;
   positionManuelleCommerce = null;
+  nouvellePositionCommerce = null;
+  document.getElementById('commerce-position-statut').textContent = '';
   definirOngletActif('carte');
   reafficherBarresMobiles();
 }
 
 async function ouvrirEditionCommerce(uid) {
+  annulerSelectionCarteSiActive(); // cf. commentaire dans ouvrirFormulaireCommerceNouveau
   const objets = await listerCommerces();
   const objet = objets.find((o) => o.uid === uid);
   if (!objet) return;
 
   uidEnEditionCommerce = uid;
+  nouvellePositionCommerce = null;
   document.getElementById('commerce-nom').value = objet.nom_commerce || '';
   document.getElementById('commerce-type').value = objet.type_commerce;
   document.getElementById('commerce-etat').value = objet.etat;
@@ -89,6 +115,8 @@ async function ouvrirEditionCommerce(uid) {
 
   document.getElementById('titre-modal-commerce').textContent = 'Modifier le commerce';
   document.getElementById('bouton-enregistrer-commerce').textContent = 'Enregistrer les modifications';
+  document.getElementById('bouton-modifier-emplacement-commerce').hidden = false;
+  document.getElementById('commerce-position-statut').textContent = '';
 
   map.closePopup();
   const panneau = document.getElementById('modal-commerce');
@@ -97,6 +125,28 @@ async function ouvrirEditionCommerce(uid) {
   definirOngletActif('commerce');
 
   if (estAffichagePC()) document.getElementById('bouton-enregistrer-commerce').focus();
+}
+
+// Modification de l'emplacement d'un commerce existant (§6.4ter, demande du
+// 31/08) — voir modifierEmplacementMobilier pour le détail du mécanisme
+// réutilisé (§6.4bis).
+function modifierEmplacementCommerce() {
+  const panneau = document.getElementById('modal-commerce');
+  const type = document.getElementById('commerce-type').value;
+  panneau.hidden = true;
+  demanderPositionSurCarte(
+    (latlng) => {
+      nouvellePositionCommerce = latlng;
+      panneau.hidden = false;
+      positionnerPanneauFormulaire(panneau, latlng);
+      document.getElementById('commerce-position-statut').textContent =
+        'Nouvel emplacement sélectionné — sera appliqué à l\'enregistrement.';
+    },
+    {
+      message: `Cliquez sur la carte pour choisir le nouvel emplacement de ce commerce (${type}) — ou ici pour annuler`,
+      onAnnuler: () => { panneau.hidden = false; }
+    }
+  );
 }
 
 async function enregistrerCommerceDepuisFormulaire() {
@@ -115,6 +165,18 @@ async function enregistrerCommerceDepuisFormulaire() {
         fermerFormulaireCommerce();
         return;
       }
+      if (nouvellePositionCommerce) {
+        // Exclut le commerce en cours de modification lui-même : sinon son
+        // ancienne position (ou un déplacement de quelques mètres) se
+        // signalerait systématiquement comme un doublon de lui-même
+        // (demande explicite du 31/08 — ne pas comparer à l'ancienne position).
+        const autresObjets = objets.filter((o) => o.uid !== uidEnEditionCommerce);
+        const proche = objetProcheExiste(autresObjets, typeCommerce, 'type_commerce', nouvellePositionCommerce, SEUIL_DOUBLON_METRES);
+        if (proche && !confirm(`Un commerce de type "${typeCommerce}" existe déjà à moins de ${SEUIL_DOUBLON_METRES} m de ce nouvel emplacement — enregistrer quand même ?`)) {
+          return;
+        }
+      }
+
       const objet = {
         ...existant,
         nom_commerce: nomCommerce,
@@ -122,7 +184,8 @@ async function enregistrerCommerceDepuisFormulaire() {
         etat,
         date_fermeture: dateFermeture,
         commentaire,
-        last_update: new Date().toISOString()
+        last_update: new Date().toISOString(),
+        ...(nouvellePositionCommerce ? { lat: nouvellePositionCommerce[0], lon: nouvellePositionCommerce[1] } : {})
       };
       await enregistrerCommerce(objet);
       mettreAJourMarqueurCommerce(objet);
@@ -202,6 +265,7 @@ async function chargerCommercesExistants() {
 
 document.getElementById('bouton-ajouter-commerce').addEventListener('click', ouvrirFormulaireCommerce);
 document.getElementById('bouton-annuler-commerce').addEventListener('click', fermerFormulaireCommerce);
+document.getElementById('bouton-modifier-emplacement-commerce').addEventListener('click', modifierEmplacementCommerce);
 document.getElementById('form-commerce').addEventListener('submit', (evenement) => {
   evenement.preventDefault();
   enregistrerCommerceDepuisFormulaire();

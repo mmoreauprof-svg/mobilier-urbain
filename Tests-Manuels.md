@@ -1,4 +1,6 @@
-# Procédures de test Utilisateur
+# Tests manuels — procédures utilisateur
+
+> Ce document décrit les vérifications que **vous** effectuez manuellement, sur les appareils réels (PC / Android / iPhone) — en complément, et non en remplacement, des tests automatisés que Claude exécute de façon autonome, documentés dans `Tests-Automatises.md`.
 
 ## Sur PC
 
@@ -251,7 +253,7 @@ Vérifie : §6.4 (suppression).
 Vérifie : §6.1quater.
 
 1. Ouvrir le panneau de filtres (bouton « Filtres » PC, icône flottante mobile).
-   → **Attendu** : les 6 catégories (5 types de mobilier + Commerces) sont cochées par défaut.
+   → **Attendu** : les 9 catégories (8 types de mobilier — Banc, Corbeille, Distributeur de sacs, Arrêt de bus, Abri bus, Recyclage verre, Recyclage électronique, Recyclage autre — + Commerces) sont cochées par défaut.
 2. Décocher « Bancs ».
    → **Attendu** : le marqueur banc créé au Parcours C disparaît de la carte immédiatement (la corbeille et les commerces restent visibles).
 3. Recocher « Bancs ».
@@ -263,14 +265,14 @@ Vérifie : §6.1quater.
 
 #### Parcours I — Export GPKG
 
-Vérifie : §6.5, §6.5bis (6 couches, nom de fichier).
+Vérifie : §6.5, §6.5bis (9 couches, nom de fichier).
 
 1. Avec plusieurs objets enregistrés (Parcours C à H), cliquer « Exporter » (PC) ou onglet « Fichier » → « Exporter les données » (mobile).
    → **Attendu** : selon la plateforme, une boîte de dialogue « Enregistrer sous » s'ouvre (Android/PC), ou une feuille de partage (iPhone), ou un téléchargement démarre.
 2. Choisir un emplacement facile à retrouver (ex. dossier Téléchargements) et confirmer.
    → **Attendu** : un fichier `mobilier_urbain_<CODE>_<AAAA-MM-JJ>.gpkg` est produit, sans message d'erreur.
 3. *(Optionnel si QGIS est disponible)* Ouvrir le fichier dans QGIS.
-   → **Attendu** : 6 couches visibles (`banc`, `corbeille`, `distributeur_sacs`, `arret_bus`, `abri_bus`, `commerce`), chacune avec un nom lisible en français, contenant les objets créés dans ce parcours avec leurs bons attributs.
+   → **Attendu** : 9 couches visibles (`banc`, `corbeille`, `distributeur_sacs`, `arret_bus`, `abri_bus`, `recyclage_verre`, `recyclage_electronique`, `recyclage_autre`, `commerce`), chacune avec un nom lisible en français, contenant les objets créés dans ce parcours avec leurs bons attributs.
 
 #### Parcours J — Import GPKG (remplacer)
 
@@ -342,6 +344,34 @@ Vérifie : §6.6 (ergonomie des panneaux), §6.6bis (raccourcis clavier) — **P
    → **Attendu** : le panneau suit la souris et se déplace ; les listes déroulantes et champs à l'intérieur restent utilisables normalement après le déplacement.
 9. Réduire la fenêtre sous 768px (bascule vers l'affichage mobile) et répéter les étapes 1 et 3.
    → **Attendu** : les touches M/C et les chiffres n'ont plus aucun effet (pas de panneau qui s'ouvre, pas de changement de type) — ces raccourcis sont réservés au PC.
+
+#### Parcours O — Recentrage manuel sur la position GPS
+
+Vérifie : §6.1quinquies.
+
+1. Avec une position GPS active (point bleu visible), déplacer/dézoomer la carte ailleurs volontairement.
+   → **Attendu** : la carte reste où vous l'avez laissée (pas de recentrage automatique après le tout premier fix).
+2. Cliquer le bouton « Recentrer » (barre d'outils PC, ou bouton flottant sous « Filtres » sur mobile).
+   → **Attendu** : la carte se recentre immédiatement sur la position GPS actuelle, **au même niveau de zoom** qu'avant le clic (pas de réinitialisation du zoom).
+3. Sans aucune position GPS disponible (géolocalisation refusée ou coupée), cliquer « Recentrer ».
+   → **Attendu** : la bannière rouge « Position GPS indisponible — impossible de recentrer la carte. » s'affiche ; la carte ne bouge pas.
+
+#### Parcours P — Modification de l'emplacement d'un objet existant
+
+Vérifie : §6.4ter.
+
+1. Rouvrir un mobilier urbain existant en modification (« Modifier »).
+   → **Attendu** : un bouton « Modifier l'emplacement » est visible dans le panneau (absent à la création d'un nouvel objet).
+2. Cliquer « Modifier l'emplacement ».
+   → **Attendu** : le panneau se referme, un message bleu apparaît (« Cliquez sur la carte pour choisir le nouvel emplacement de ce [type] — ou ici pour annuler »).
+3. Cliquer un nouveau point sur la carte, proche de l'ancien emplacement (quelques mètres).
+   → **Attendu** : le panneau se rouvre à cet endroit, avec un texte de confirmation (« Nouvel emplacement sélectionné — sera appliqué à l'enregistrement. ») ; **aucune** alerte de doublon ne se déclenche (l'objet n'est jamais comparé à sa propre ancienne position).
+4. Valider « Enregistrer les modifications ».
+   → **Attendu** : le marqueur se déplace au nouvel endroit sur la carte (pas de nouveau marqueur créé, l'ancien disparu).
+5. Recommencer l'opération, mais cette fois choisir un point situé à moins de 5 m d'un **autre** objet du même type.
+   → **Attendu** : l'alerte de doublon habituelle apparaît bien cette fois (« ... existe déjà à moins de 5 m de ce nouvel emplacement... »).
+6. Recommencer une dernière fois, mais cliquer sur le message bleu (annulation) plutôt que sur la carte.
+   → **Attendu** : le panneau se rouvre sans aucun changement de position, comme si de rien n'était.
 
 ### Parcours avec erreurs / cas limites
 
@@ -415,7 +445,7 @@ Vérifie : §6.1bis (seuil de 5 mètres).
 
 #### Erreur 8 — Masquer toutes les catégories du filtre
 
-1. Ouvrir le panneau de filtres et décocher les 6 catégories une par une.
+1. Ouvrir le panneau de filtres et décocher les 9 catégories une par une.
    → **Attendu** : la carte se vide complètement de tout marqueur (mobilier + commerce), sans erreur ni blocage de l'interface.
 2. Essayer d'ajouter un nouveau mobilier urbain dans cet état (toutes catégories masquées).
    → **Attendu** : la saisie fonctionne normalement (formulaire, enregistrement) ; l'objet est bien créé en base mais reste invisible tant que sa catégorie n'est pas recochée.
@@ -447,5 +477,17 @@ Vérifie : §6.1bis (seuil de 5 mètres).
    → **Attendu** : l'export fonctionne (il ne nécessite pas de réseau, tout se passe en local).
 5. Réactiver la connexion.
    → **Attendu** : retour à la normale, aucune donnée perdue pendant la coupure.
+
+#### Erreur 11 — Changer d'objet sans terminer une sélection de nouvel emplacement
+
+*(Correspond à une anomalie réelle trouvée et corrigée le 06/09 — bon test de non-régression.)*
+
+1. Ouvrir un premier objet (A) en modification, cliquer « Modifier l'emplacement » (message bleu affiché), mais **sans cliquer sur la carte**.
+2. Sans rien faire d'autre, cliquer sur le marqueur d'un second objet différent (B) puis « Modifier ».
+   → **Attendu** : le panneau d'édition de B s'ouvre normalement ; le message bleu de sélection de A a disparu (pas de message résiduel affiché par-dessus).
+3. Cliquer un point quelconque sur la carte.
+   → **Attendu** : **rien ne se passe** sur la position de A ni de B — ce clic est un clic de carte normal (pan/zoom), pas une sélection d'emplacement en attente. Vérifier en rouvrant A et B que leurs positions n'ont pas changé.
+4. Répéter le même scénario en sortant cette fois via l'onglet « Carte » (mobile) ou le raccourci clavier **M**/**C** (PC) au lieu d'éditer un autre objet.
+   → **Attendu** : même résultat — aucune position modifiée par inadvertance, aucun message résiduel.
 
 

@@ -1,12 +1,12 @@
 # Tests automatisés — démarche de Claude
 
-> Ce document décrit les vérifications que Claude effectue **de façon autonome**, avant chaque livraison d'une itération de l'étape 4 — en complément, et non en remplacement, des tests utilisateur manuels documentés dans `Procédures Test.md`.
+> Ce document décrit les vérifications que Claude effectue **de façon autonome**, avant chaque livraison d'une itération de l'étape 4 — en complément, et non en remplacement, des tests utilisateur manuels documentés dans `Tests-Manuels.md`.
 
 ## Deux couches de vérification
 
 | | Qui | Où c'est documenté | Couvre |
 |---|---|---|---|
-| Tests manuels utilisateur | Vous | `Procédures Test.md` | PC / Android / iPhone, ergonomie réelle, GPS réel |
+| Tests manuels utilisateur | Vous | `Tests-Manuels.md` | PC / Android / iPhone, ergonomie réelle, GPS réel |
 | Tests automatisés | Claude, en autonomie | Ce fichier | Logique pure + parcours fonctionnel de base |
 
 Les tests automatisés ne remplacent jamais les tests manuels : ils ne peuvent pas couvrir le GPS réel, les comportements spécifiques iOS Safari / Android Chrome, ni l'ergonomie tactile.
@@ -307,3 +307,50 @@ Cf. Specifications.md §6.1quinquies. Nouvelle fonction `recentrerSurPosition()`
 **Bug de test trouvé et corrigé en cours de route** (pas un bug de l'app) : le test de conservation du zoom échouait de façon reproductible (2 exécutions consécutives, même échec précis) — diagnostiqué par isolation manuelle dans la console : un `map.setView(mêmeCentre, zoomDifférent)` part sur le chemin animé de Leaflet, qui ne se termine jamais de façon synchrone dans le conteneur carte minuscule (1×1 px) du harnais de test caché, laissant `getZoom()` renvoyer l'ancien zoom juste après l'appel. Corrigé en passant `{ animate: false }` à l'appel de préparation du test (comportement de `recentrerSurPosition()` lui-même non modifié) et en attendant la condition via `attendreCondition()` par sécurité. Sans impact sur l'usage réel, où le conteneur carte est visible à sa taille normale.
 
 **Suite complète : 119/119 tests OK** (+ 1 ignoré), rejouée deux fois de suite après correction. Vérification manuelle complémentaire sur l'app réelle (PC et mobile, via l'outil navigateur de Claude) : bouton "Recentrer" visible aux deux formats, clic sans position GPS déclenchant bien la bannière d'erreur attendue (confirmé dans les deux cas — la géolocalisation est refusée par défaut dans l'outil navigateur de Claude, ce qui a permis de vérifier ce chemin directement en conditions réelles plutôt que simulé).
+
+## Modification de l'emplacement d'un objet existant (2026-08-31)
+
+Cf. Specifications.md §6.4ter. Le formulaire d'édition (mobilier et commerce) gagne un bouton **"Modifier l'emplacement"** (masqué à la création), qui réutilise le mécanisme de sélection manuelle du §6.4bis (`demanderPositionSurCarte`, désormais paramétrable par un message et un callback d'annulation `onAnnuler`). 9 nouveaux tests fonctionnels :
+
+- **Visibilité et message explicite** : le bouton n'apparaît qu'en édition (absent à la création) ; une fois cliqué, la bannière affiche un message adapté au déplacement, mentionnant le type de l'objet ("...le nouvel emplacement de ce Corbeille...") plutôt que le message générique de création.
+- **Annulation de la sélection** (clic sur la bannière) : rouvre le panneau d'édition sans rien modifier (position inchangée après enregistrement), sans laisser de message de confirmation résiduel.
+- **Confirmation après sélection** : un texte ("Nouvel emplacement sélectionné — sera appliqué à l'enregistrement.") apparaît dans le panneau ; "Annuler" à ce stade n'enregistre toujours rien (cohérent avec le comportement déjà testé pour les autres champs).
+- **Chemin nominal (mobilier + commerce)** : cliquer sur la carte puis "Enregistrer les modifications" met à jour la position en base **et** déplace le marqueur existant (`marker.getLatLng()` vérifié), sans le recréer.
+- **Doublon — exclusion de l'ancienne position de l'objet lui-même** (mobilier + commerce, demande explicite de l'utilisateur) : déplacer un objet de quelques centimètres (donc à moins de 5 m de sa **propre** ancienne position) ne déclenche **aucune** alerte de doublon — vérifié en comptant les appels à `confirm()` (`confirmMessages.length === 0`), pas seulement en acceptant silencieusement une éventuelle alerte. C'est le point que la fonctionnalité devait explicitement éviter : sans l'exclusion par `uid`, tout déplacement, même minime, se serait signalé comme un doublon de l'objet avec lui-même.
+- **Doublon — détection réelle contre un autre objet** (mobilier + commerce) : déplacer un objet vers l'emplacement exact d'un *autre* objet du même type déclenche bien l'alerte ("...existe déjà à moins de 5 m de ce nouvel emplacement...") ; un refus laisse l'objet à son ancienne position, une acceptation le déplace.
+
+**Répercussions vérifiées sans modification de code supplémentaire** : `mettreAJourMarqueurMobilier`/`mettreAJourMarqueurCommerce` appellent désormais `marker.setLatLng(...)`, ce qui bénéficie aussi à la fusion GPKG (§6.5bis) — un objet dont la position a été modifiée sur un autre appareil et fusionné localement voit maintenant son marqueur suivre, alors que ce n'était pas le cas auparavant (angle mort pas testé jusqu'ici, comblé par cette même modification).
+
+**Portée assumée** : les tests de message/annulation/confirmation ne sont écrits que côté mobilier (le mécanisme `demanderPositionSurCarte` sous-jacent est partagé et déjà testé des deux côtés au §6.4bis) ; côté commerce, seuls les trois scénarios les plus critiques pour la sécurité des données (chemin nominal, exclusion de soi-même, doublon réel) sont dupliqués.
+
+**Suite complète : 128/128 tests OK** (+ 1 ignoré), rejouée deux fois de suite. Vérification manuelle complémentaire sur l'app réelle (outil navigateur de Claude) : création d'un mobilier, clic sur "Modifier l'emplacement" affichant le message exact "Cliquez sur la carte pour choisir le nouvel emplacement de ce Banc — ou ici pour annuler", sélection d'un nouveau point confirmée par le texte du panneau, enregistrement déplaçant effectivement la donnée en base et le marqueur sur la carte, et annulation de la sélection en cours rouvrant proprement le panneau sans effet de bord. Service worker passé en `v9`.
+
+## Corrections de la relecture du 06/09 (`20260906 ResultatRelecture.md`)
+
+Relecture déclenchée par la fonctionnalité de modification de position (ci-dessus), appliquée au code réellement présent — deux anomalies confirmées et corrigées, un point mineur confirmé et corrigé.
+
+### 1. État de sélection de carte non nettoyé sur plusieurs chemins de sortie [Sévère]
+
+Confirmé par relecture puis reproduit : ouvrir "Modifier l'emplacement" sur un objet A, puis ouvrir "Modifier" sur un objet B **sans finir** la sélection de A, laissait l'écouteur `map.on('click', ...)` de A actif ; le clic suivant sur la carte appliquait alors le nouvel emplacement à l'objet en cours d'édition **au moment du clic** (B), pas à celui initialement visé (A). D'autres chemins (onglet "Carte", raccourcis clavier M/C) présentaient le même trou, `panneauMobilierOuvert`/`Commerce` étant basé sur l'attribut `hidden` du panneau — justement masqué pendant une sélection en cours.
+
+**Correctif** : nouvelle fonction `annulerSelectionCarteSiActive()` (`app/js/map.js`), appelée systématiquement en tête de `ouvrirFormulaireMobilierNouveau`/`Commerce`, `ouvrirEditionMobilier`/`Commerce`, `fermerFormulaireMobilier`/`Commerce` et `ouvrirEcranFichier` (ce dernier point ajouté par précaution, même risque non cité explicitement par le rapport mais de même nature). Sans effet quand aucune sélection n'est en cours (cas normal, no-op).
+
+3 nouveaux tests fonctionnels reproduisant chacun un des chemins cités : édition d'un autre objet, onglet "Carte", raccourci clavier "M" — chacun vérifie qu'après le chemin de sortie, la bannière de sélection est bien masquée et qu'un clic sur la carte ensuite ne modifie la position d'aucun objet.
+
+### 2. `uid` non échappé dans les attributs `onclick` des popups [Sécurité]
+
+Confirmé : `commentaire`/`nom_commerce` passaient par `echapperHtml()` avant insertion dans le HTML du popup, mais pas `uid`, interpolé brut dans `onclick="ouvrirEditionMobilier('${uid}')"`. Vecteur réel mais étroit (nécessite un `.gpkg` réédité à la main puis importé, `lireCouche` ne validant pas le format du `uid` importé).
+
+**Analyse complémentaire faite avant de corriger** : la correction suggérée par le rapport (appliquer `echapperHtml()` au `uid`, comme les autres champs) s'est révélée **insuffisante** en vérifiant précisément son comportement — `echapperHtml()` échappe `&`/`<`/`>` (nécessaire pour du texte entre balises) mais **pas les guillemets**, or le vecteur d'attaque exact du rapport (`x');alert(1)//`) est une évasion par apostrophe hors de la chaîne JS entre apostrophes dans l'attribut `onclick`, insensible à cet échappement-là.
+
+**Correctif retenu** (plus robuste qu'un simple ajout d'échappement) : abandon des `onclick="...('${uid}')"` interpolés au profit d'attributs `data-uid`/`data-action` lus par un écouteur de clic délégué sur `#map` (`mobilier.js`/`commerce.js`) — un attribut `data-*` n'est jamais interprété comme du code exécutable, quel que soit son contenu, une fois échappé pour rester dans les guillemets de l'attribut. Nouvelle fonction `echapperAttribut()` (`app/js/util.js`, `echapperHtml()` + échappement des guillemets doubles) pour ce contexte précis.
+
+**Vérifié empiriquement avant d'implémenter** que Leaflet ne bloque pas cette approche : un clic sur un bouton à l'intérieur d'un popup Leaflet remonte bien jusqu'à `#map` en DOM natif (délégation possible), sans jamais déclencher `map.on('click', ...)` de Leaflet (donc aucune interférence avec la sélection de position du §6.4bis/ter) — confirmé par test direct dans le navigateur avant d'écrire le code définitif, plutôt que supposé.
+
+2 nouveaux tests de logique pure : `echapperAttribut` échappe bien les guillemets doubles ; un `uid` combinant tentative d'évasion JS et injection de balise (`x"');alert(1);//<img src=x onerror=alert(2)>`) ne produit, une fois le HTML du popup réellement parsé en DOM, ni élément `<img>`/`<script>` injecté, ni attribut `onclick`/`onerror` sur aucun élément, tout en restant fidèle au clic (`button.dataset.uid` égal au `uid` d'origine). Les 2 tests existants sur la structure des popups (2 boutons distincts) mis à jour pour vérifier `data-uid`/`data-action` au lieu de l'ancien texte `onclick="...(...)"`.
+
+### Point mineur confirmé : chevauchement `#panneau-filtres` / `#bouton-recentrer-mobile`
+
+Vérifié visuellement (capture d'écran, vue mobile, `getBoundingClientRect`) : le panneau de filtres ouvert (`top: 50px`) recouvrait entièrement le bouton "Recentrer" (`top: 54px`), tous deux ancrés à `right: 10px`. Corrigé en descendant le panneau à `top: 94px`. Non testé automatiquement (media query CSS liée à la largeur réelle du viewport, pas simulable de façon fiable dans le harnais — même limitation déjà documentée pour l'interface adaptative PC/mobile) ; revérifié par mesure directe après correctif (plus de chevauchement).
+
+**Suite complète : 133/133 tests OK** (+ 1 ignoré), rejouée deux fois de suite. Vérification manuelle complémentaire sur l'app réelle : le scénario exact du rapport (sélection d'emplacement sur A, édition de B sans finir, clic sur la carte) reproduit puis confirmé corrigé (ni A ni B modifiés) ; clic réel sur "Modifier" dans un popup confirmé fonctionnel avec la nouvelle architecture `data-uid`/écouteur délégué ; chevauchement filtres/recentrer confirmé résolu par mesure directe. Service worker passé en `v10`.

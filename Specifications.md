@@ -47,7 +47,7 @@ Deux téléphones saisissant en parallèle vont chacun générer des identifiant
 
 - **Manifest** (`app/manifest.json`) : nom, icônes, `display: "standalone"` (l'app s'ouvre sans barre d'adresse ni chrome navigateur, comme une app native), couleur de thème reprenant le bleu de l'app (`#1a73e8`).
 - **Icônes d'application** (générées, pas dessinées à la main comme les icônes de marqueurs) : punaise de localisation blanche sur fond bleu arrondi, cohérente avec le style des icônes de marqueurs. Générées en 4 tailles avec `Pillow` (`app/icons/app-icon-{32,180,192,512}.png`) : 192/512 pour le manifest (Android/Chrome), 180 pour `apple-touch-icon` (iOS, sans transparence — recommandation Apple), 32 pour l'onglet du navigateur.
-- **Service worker** (`app/service-worker.js`) — revu le 2026-08-23, met désormais réellement l'app en cache (cf. §4) : deux caches distincts, un pour les fichiers de l'app (préchargés à l'installation, servis "cache d'abord") et un pour les tuiles de carte (mises en cache au fur et à mesure, "réseau d'abord, secours sur le cache"). Une constante `VERSION` en tête de fichier doit être incrémentée à chaque mise à jour publiée, pour que les appareils déjà installés basculent sur les nouveaux fichiers au lieu de resservir une ancienne version en cache (même mécanisme que le problème de cache HTTP déjà rencontré plusieurs fois côté développement, cf. `Procédures Test.md`).
+- **Service worker** (`app/service-worker.js`) — revu le 2026-08-23, met désormais réellement l'app en cache (cf. §4) : deux caches distincts, un pour les fichiers de l'app (préchargés à l'installation, servis "cache d'abord") et un pour les tuiles de carte (mises en cache au fur et à mesure, "réseau d'abord, secours sur le cache"). Une constante `VERSION` en tête de fichier doit être incrémentée à chaque mise à jour publiée, pour que les appareils déjà installés basculent sur les nouveaux fichiers au lieu de resservir une ancienne version en cache (même mécanisme que le problème de cache HTTP déjà rencontré plusieurs fois côté développement, cf. `Tests-Manuels.md`).
 - Balises meta iOS (`apple-mobile-web-app-capable`, etc.) pour un rendu correct en plein écran une fois ajouté à l'écran d'accueil.
 
 **Vérification** : hébergement GitHub Pages confirmé fonctionnel côté Claude (chargement de tous les fichiers en HTTPS, sans erreur). Sous cette vraie adresse HTTPS, l'enregistrement du service worker **réussit** (contrairement à un test antérieur sous serveur local, qui échouait systématiquement — la cause était donc bien l'absence de HTTPS, pas un problème de code) : worker activé, cache applicatif peuplé avec les 35 fichiers attendus. Le comportement hors-ligne complet (recharger la page sans réseau) n'a pas pu être simulé dans l'outil de Claude (pas de bascule hors-ligne disponible) — logique du service worker vérifiée par lecture de code et par l'état du cache, confirmation finale en conditions réelles à faire par l'utilisateur (ex. mode avion sur téléphone).
@@ -61,7 +61,7 @@ Deux téléphones saisissant en parallèle vont chacun générer des identifiant
 - **Adresse de l'app** : `https://mmoreauprof-svg.github.io/mobilier-urbain/app/`
 - **Dépôt Git local inchangé** : GitHub n'est qu'une deuxième copie (un "remote") du dépôt local existant. Le développement continue de se faire localement (avec Claude), test via le serveur local `python -m http.server` comme avant.
 - **Mise à jour** : une fois une nouvelle version testée et commitée localement, `git push` la publie sur GitHub Pages. Les appareils déjà installés reçoivent la mise à jour à leur prochaine connexion (le service worker vérifie automatiquement si une nouvelle version est disponible, cf. §3ter).
-- Cette adresse remplace l'ancienne procédure d'installation par IP locale dans `Procédures Test.md`.
+- Cette adresse remplace l'ancienne procédure d'installation par IP locale dans `Tests-Manuels.md`.
 
 ## 4. Fonctionnement hors-ligne ✅ (revu le 2026-08-23)
 
@@ -99,6 +99,8 @@ Toutes les catégories sont cochées (visibles) par défaut à l'ouverture. Le f
 ### 6.1quinquies Recentrage manuel sur la position GPS ✅ (30/08)
 
 Un bouton dédié ("Recentrer", à côté de "Filtres" sur PC, empilé juste en dessous du bouton flottant "Filtres" sur mobile) recentre la carte sur la dernière position GPS connue, à tout moment sur demande de l'utilisateur — distinct du recentrage automatique du §6.1 qui ne joue qu'au tout premier relevé GPS de la session, pour ne pas gêner une carte déjà déplacée/zoomée volontairement. Le niveau de zoom courant est conservé (seul le centre change). Si aucune position GPS n'a encore été reçue, un clic affiche la bannière d'erreur habituelle ("Position GPS indisponible — impossible de recentrer la carte.") au lieu de recentrer sur une position inexistante.
+
+⚠️ **Chevauchement corrigé** (relecture du 06/09, mineur) : sur mobile, le panneau de filtres ouvert (§6.1quater) recouvrait entièrement ce bouton (`top: 50px` vs `top: 54px`, tous deux ancrés à droite). Panneau de filtres redescendu à `top: 94px` pour dégager les deux boutons flottants.
 
 ### 6.1bis Détection de doublon ✅
 Lors d'une nouvelle saisie, si un objet du **même type** existe déjà à **moins de 5 mètres**, un avertissement s'affiche avant l'enregistrement ("Un [type] existe déjà à proximité — enregistrer quand même ?"). Le seuil (5 m) est un paramètre modifiable dans le code, pas une saisie utilisateur.
@@ -138,6 +140,8 @@ Bouton dédié → enregistre la position actuelle → formulaire :
 - **Supprimer** déclenche directement une confirmation (`confirm()` natif du navigateur — bouton OK déjà activé par défaut avec la touche Entrée) sans ouvrir le formulaire.
 - `last_update` remis à jour à chaque modification.
 
+⚠️ **Faille corrigée** (relecture du 06/09, sécurité) : le `uid` de l'objet était inséré tel quel dans un attribut `onclick="...('${uid}')"` des boutons du popup, sans échappement (contrairement à `commentaire`/`nom_commerce`, déjà protégés). En usage normal le `uid` est généré en interne et sans risque, mais l'import GPKG (§6.5) ne validait pas son format : un fichier `.gpkg` réédité à la main avec un `uid` contenant des caractères spéciaux aurait pu casser l'attribut et exécuter du code arbitraire à l'ouverture du popup. Corrigé en abandonnant les `onclick` interpolés au profit d'attributs `data-uid`/`data-action` (jamais interprétés comme du code) lus par un écouteur de clic délégué, avec un nouvel échappement dédié au contexte attribut (`echapperAttribut`, `app/js/util.js`, distinct de `echapperHtml` qui protège le texte entre balises mais pas les guillemets d'un attribut).
+
 ### 6.4bis Sélection manuelle d'un point sur la carte ✅
 
 Sans GPS fiable (PC de développement, ou signal faible en intérieur), la création d'un objet ne peut pas toujours se baser sur une position automatique. Comportement retenu, **sans détection de plateforme** :
@@ -146,6 +150,21 @@ Sans GPS fiable (PC de développement, ou signal faible en intérieur), la créa
   - **Si une position GPS récente est disponible** : comportement inchangé, la position est capturée immédiatement (cf. §6.2, §6.3).
   - **Sinon** : un message invite à cliquer sur la carte (« Cliquez sur la carte pour choisir l'emplacement »), le curseur change, et le **prochain clic sur la carte** définit les coordonnées ; le formulaire s'ouvre alors normalement avec cette position.
 - Ce mécanisme est universel : il n'est pas réservé au PC. Il reste disponible aussi sur téléphone si le GPS est indisponible ou imprécis (bâtiment, signal faible), pour positionner manuellement le point sur la carte.
+
+### 6.4ter Modification de l'emplacement d'un objet existant ✅ (31/08)
+
+Le formulaire d'édition (§6.4) comporte désormais un bouton **"Modifier l'emplacement"**, visible uniquement en modification (absent à la création, où la position est déjà déterminée par le GPS ou la sélection manuelle du §6.4bis). Ce bouton réutilise le mécanisme du §6.4bis :
+
+- Le panneau se referme temporairement et le message **"Cliquez sur la carte pour choisir le nouvel emplacement de ce [type] — ou ici pour annuler"** s'affiche (message explicite, distinct de celui de la création, pour que l'utilisateur comprenne qu'il s'agit d'un déplacement et non d'une nouvelle saisie).
+- Un clic sur la carte rouvre le panneau d'édition (tous les champs déjà saisis sont conservés) à ce nouveau point, avec une confirmation textuelle affichée dans le panneau ("Nouvel emplacement sélectionné — sera appliqué à l'enregistrement.").
+- Un clic sur le message annule le déplacement et rouvre le panneau sans rien changer.
+- Rien n'est appliqué tant que l'utilisateur ne valide pas "Enregistrer les modifications" ; "Annuler" abandonne le nouvel emplacement comme les autres champs modifiés.
+
+**Détection de doublon** : au moment d'enregistrer un déplacement, la vérification de proximité (§6.1bis) s'applique à la **nouvelle** position, en comparant aux autres objets du même type **à l'exclusion de l'objet en cours de modification lui-même** — sinon son ancienne position (ou un déplacement de quelques mètres) se signalerait systématiquement comme un doublon de lui-même.
+
+**Répercussions vérifiées** : le marqueur est déplacé sur la carte (`setLatLng`) sans être recréé ; l'export/import/fusion GPKG ne nécessite aucune adaptation, la position faisant déjà partie de l'objet comparé par `last_update` lors d'une fusion (§6.5bis) — un déplacement est traité comme n'importe quelle autre modification.
+
+⚠️ **Anomalie corrigée** (relecture du 06/09) : quitter le formulaire pendant une sélection de nouvel emplacement en attente par un autre chemin que les 3 prévus (clic sur la bannière, clic sur la carte, nouvelle sélection démarrée) — onglet « Carte », raccourcis clavier M/C, ou ouverture de « Modifier » sur un *autre* objet — laissait l'écouteur de clic carte actif. Le clic suivant sur la carte appliquait alors le nouvel emplacement à l'objet en cours d'édition **au moment de ce clic**, pas nécessairement celui pour lequel la sélection avait été demandée. Corrigé en annulant systématiquement toute sélection en attente (`annulerSelectionCarteSiActive()`, `app/js/map.js`) à l'ouverture ou la fermeture de n'importe quel panneau mobilier/commerce/fichier.
 
 ### 6.5 Persistance, Import et Export ✅ (revu — 3 flux distincts, couches multiples)
 

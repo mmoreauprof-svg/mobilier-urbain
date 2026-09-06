@@ -197,6 +197,33 @@ html, body {
   border-radius: 4px;
 }
 
+/* Bouton "Modifier l'emplacement" (§6.4ter, formulaire d'édition) : visible
+   uniquement en modification, jamais à la création — cf. mobilier.js/commerce.js. */
+.bouton-emplacement {
+  display: block;
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 4px;
+  font-size: 13px;
+  border: 1px solid #1a73e8;
+  border-radius: 6px;
+  background: white;
+  color: #1a73e8;
+}
+
+/* Confirmation textuelle après sélection d'un nouvel emplacement (§6.4ter) —
+   masqué tant qu'aucun nouvel emplacement n'est en attente (texte vide). */
+.position-statut {
+  font-size: 12px;
+  font-style: italic;
+  color: #1a73e8;
+  margin: 0 0 10px;
+}
+
+.position-statut:empty {
+  display: none;
+}
+
 .erreur {
   color: #d33;
   font-size: 13px;
@@ -318,7 +345,10 @@ html, body {
 
 .panneau-filtres {
   position: absolute;
-  top: 50px;
+  /* 94px (relecture du 06/09) : sous les DEUX boutons flottants mobiles
+     (Filtres à 10px, Recentrer à 54px+31px de hauteur) — à 50px, le panneau
+     ouvert recouvrait entièrement le bouton "Recentrer" (constaté visuellement). */
+  top: 94px;
   right: 10px;
   z-index: 1600;
   background: white;

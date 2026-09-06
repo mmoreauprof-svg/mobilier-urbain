@@ -109,6 +109,9 @@
     <div class="modal-contenu">
       <h2 id="titre-modal-mobilier" class="poignee-deplacement">Nouveau mobilier urbain</h2>
       <form id="form-mobilier-urbain">
+        <button type="button" id="bouton-modifier-emplacement-mobilier" class="bouton-emplacement" hidden>Modifier l'emplacement</button>
+        <p id="mobilier-position-statut" class="position-statut"></p>
+
         <label for="mobilier-type">Type</label>
         <select id="mobilier-type">
           <option>Banc</option>
@@ -148,6 +151,9 @@
     <div class="modal-contenu">
       <h2 id="titre-modal-commerce" class="poignee-deplacement">Nouveau commerce</h2>
       <form id="form-commerce">
+        <button type="button" id="bouton-modifier-emplacement-commerce" class="bouton-emplacement" hidden>Modifier l'emplacement</button>
+        <p id="commerce-position-statut" class="position-statut"></p>
+
         <label for="commerce-nom">Nom du commerce (optionnel)</label>
         <input type="text" id="commerce-nom" placeholder="Ex. Boulangerie Dupont">
 

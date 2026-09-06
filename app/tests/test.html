@@ -72,6 +72,8 @@
     <div id="modal-mobilier-urbain" class="panneau-formulaire" hidden>
       <h2 id="titre-modal-mobilier"></h2>
       <form id="form-mobilier-urbain">
+        <button type="button" id="bouton-modifier-emplacement-mobilier" hidden>Modifier l'emplacement</button>
+        <p id="mobilier-position-statut"></p>
         <select id="mobilier-type">
           <option>Banc</option>
           <option>Corbeille</option>
@@ -98,6 +100,8 @@
     <div id="modal-commerce" class="panneau-formulaire" hidden>
       <h2 id="titre-modal-commerce"></h2>
       <form id="form-commerce">
+        <button type="button" id="bouton-modifier-emplacement-commerce" hidden>Modifier l'emplacement</button>
+        <p id="commerce-position-statut"></p>
         <input type="text" id="commerce-nom">
         <select id="commerce-type">
           <option>Supérette</option>
@@ -583,12 +587,16 @@
       })();
 
       // --- Demande du 23/08, §B.1 : popup mobilier/commerce avec 2 boutons distincts ---
+      // uid porté par data-uid/data-action (relecture du 06/09, cf. plus bas) plutôt
+      // que par un onclick="...('uid')" — le clic réel est vérifié plus loin via le
+      // clic délégué sur #map, cf. boutonPopup()/boutonPopupSupprimer().
       verifier(
         'popup mobilier : contient deux boutons distincts Modifier et Supprimer (plus "Modifier / Supprimer" unique)',
         (() => {
           const html = construirePopupMobilier({ uid: 'AUD-POPUP-1', type_objet: 'Banc', etat: 'Bon', nombre: 1, commentaire: '' });
           return html.includes('>Modifier<') && html.includes('>Supprimer<')
-            && html.includes("ouvrirEditionMobilier('AUD-POPUP-1')") && html.includes("supprimerMobilier('AUD-POPUP-1')");
+            && html.includes('data-uid="AUD-POPUP-1" data-action="modifier-mobilier"')
+            && html.includes('data-uid="AUD-POPUP-1" data-action="supprimer-mobilier"');
         })()
       );
       verifier(
@@ -596,7 +604,43 @@
         (() => {
           const html = construirePopupCommerce({ uid: 'AUD-POPUP-2', nom_commerce: 'Test', type_commerce: 'Coiffeur', etat: 'Occupé' });
           return html.includes('>Modifier<') && html.includes('>Supprimer<')
-            && html.includes("ouvrirEditionCommerce('AUD-POPUP-2')") && html.includes("supprimerCommerce('AUD-POPUP-2')");
+            && html.includes('data-uid="AUD-POPUP-2" data-action="modifier-commerce"')
+            && html.includes('data-uid="AUD-POPUP-2" data-action="supprimer-commerce"');
+        })()
+      );
+
+      // --- Relecture du 06/09, point 2 : uid non échappé dans les popups ---
+      // Avant correction, un uid du type x');alert(1)// (importable via un .gpkg
+      // trafiqué à la main, cf. gpkg.js/lireCouche qui ne valide pas le format du
+      // uid importé) cassait l'attribut onclick et exécutait du code arbitraire.
+      verifier(
+        'echapperAttribut échappe les guillemets doubles (contexte attribut, distinct de echapperHtml)',
+        echapperAttribut('x" onmouseover="alert(1)') === 'x&quot; onmouseover=&quot;alert(1)'
+      );
+      verifier(
+        'sécurité : un uid contenant des caractères d\'échappement HTML/JS ne casse pas l\'attribut data-uid et reste fidèle au clic',
+        (() => {
+          const uidMalveillant = `x"');alert(1);//<img src=x onerror=alert(2)>`;
+          const html = construirePopupMobilier({ uid: uidMalveillant, type_objet: 'Banc', etat: 'Bon', nombre: 1, commentaire: '' });
+
+          // Vérification par analyse du DOM réellement produit (pas seulement du
+          // texte brut) : le texte échappé contient forcément encore les mots
+          // "onerror"/"<img" en clair (c'est le rôle de l'échappement de les
+          // rendre inertes, pas de les faire disparaître) — seule l'absence
+          // d'un vrai élément/attribut exécutable dans le DOM parsé compte.
+          const conteneur = document.createElement('div');
+          conteneur.innerHTML = html;
+          const boutons = conteneur.querySelectorAll('button');
+
+          const structureIntacte = boutons.length === 2; // pas de balise cassée/injectée par un attribut mal fermé
+          const aucuneBaliseInjectee = conteneur.querySelectorAll('img, script').length === 0;
+          const aucunGestionnaireInline = ![...conteneur.querySelectorAll('*')]
+            .some((el) => el.hasAttribute('onclick') || el.hasAttribute('onerror'));
+          const uidFidele = structureIntacte
+            && boutons[0].dataset.uid === uidMalveillant
+            && boutons[1].dataset.uid === uidMalveillant;
+
+          return structureIntacte && aucuneBaliseInjectee && aucunGestionnaireInline && uidFidele;
         })()
       );
 
@@ -954,6 +998,266 @@
         return derniereAlerte().includes('supprimé entre-temps')
           && document.getElementById('modal-mobilier-urbain').hidden === true
           && !objets.some((o) => o.uid === 'TST-900');
+      });
+
+      // --- Modification de l'emplacement d'un objet existant (§6.4ter, demande du 31/08) ---
+      await verifierAsync('mobilier : "Modifier l\'emplacement" n\'apparaît qu\'en édition et affiche un message explicite adapté au déplacement', async () => {
+        onPositionRecue({ coords: { latitude: 200, longitude: 200 } });
+        document.getElementById('bouton-ajouter-mobilier').click();
+        const absentACreation = document.getElementById('bouton-modifier-emplacement-mobilier').hidden === true;
+        fermerFormulaireMobilier();
+
+        const objet = { uid: 'TST-POS-MSG', type_objet: 'Corbeille', etat: 'Bon', nombre: 1, commentaire: '', last_update: new Date().toISOString(), lat: 201, lon: 201 };
+        await enregistrerMobilierUrbain(objet);
+        await ouvrirEditionMobilier('TST-POS-MSG');
+        const visibleEnEdition = document.getElementById('bouton-modifier-emplacement-mobilier').hidden === false;
+
+        document.getElementById('bouton-modifier-emplacement-mobilier').click();
+        const banniereTexte = document.getElementById('banniere-selection').textContent;
+        const messageExplicite = banniereTexte.includes('nouvel emplacement') && banniereTexte.includes('Corbeille');
+
+        document.getElementById('banniere-selection').click(); // annule, revient au panneau
+        document.getElementById('modal-mobilier-urbain').hidden = true;
+
+        return absentACreation && visibleEnEdition && messageExplicite;
+      });
+
+      await verifierAsync('mobilier : annuler la sélection du nouvel emplacement (clic sur la bannière) rouvre le panneau sans modifier la position', async () => {
+        const objet = { uid: 'TST-POS-CANCEL', type_objet: 'Banc', etat: 'Bon', nombre: 1, commentaire: '', last_update: new Date().toISOString(), lat: 202, lon: 202 };
+        await enregistrerMobilierUrbain(objet);
+        afficherMarqueurMobilier(objet);
+
+        await ouvrirEditionMobilier('TST-POS-CANCEL');
+        document.getElementById('bouton-modifier-emplacement-mobilier').click();
+        document.getElementById('banniere-selection').click();
+
+        const panneauRouvert = document.getElementById('modal-mobilier-urbain').hidden === false;
+        const statutVide = document.getElementById('mobilier-position-statut').textContent === '';
+
+        document.getElementById('bouton-enregistrer-mobilier').click();
+        await attendreCondition(() => document.getElementById('modal-mobilier-urbain').hidden === true);
+        const inchange = (await listerMobilierUrbain()).find((o) => o.uid === 'TST-POS-CANCEL');
+
+        return panneauRouvert && statutVide && inchange.lat === 202 && inchange.lon === 202;
+      });
+
+      await verifierAsync('mobilier : après sélection d\'un nouvel emplacement, un message confirme le point choisi ; Annuler n\'enregistre rien', async () => {
+        const objet = { uid: 'TST-POS-CONF', type_objet: 'Banc', etat: 'Bon', nombre: 1, commentaire: '', last_update: new Date().toISOString(), lat: 203, lon: 203 };
+        await enregistrerMobilierUrbain(objet);
+
+        await ouvrirEditionMobilier('TST-POS-CONF');
+        document.getElementById('bouton-modifier-emplacement-mobilier').click();
+        map.fire('click', { latlng: L.latLng(204, 204) });
+
+        const statutRempli = document.getElementById('mobilier-position-statut').textContent.includes('Nouvel emplacement sélectionné');
+        const panneauRouvert = document.getElementById('modal-mobilier-urbain').hidden === false;
+        document.getElementById('bouton-annuler-mobilier').click();
+
+        const inchange = (await listerMobilierUrbain()).find((o) => o.uid === 'TST-POS-CONF');
+        return statutRempli && panneauRouvert && inchange.lat === 203 && inchange.lon === 203;
+      });
+
+      await verifierAsync('mobilier : modifier l\'emplacement puis enregistrer déplace le marqueur et met à jour la position sauvegardée', async () => {
+        const objet = { uid: 'TST-POS-SAVE', type_objet: 'Arrêt de bus', etat: 'Bon', nombre: 1, commentaire: '', last_update: new Date().toISOString(), lat: 205, lon: 205 };
+        await enregistrerMobilierUrbain(objet);
+        afficherMarqueurMobilier(objet);
+
+        await ouvrirEditionMobilier('TST-POS-SAVE');
+        document.getElementById('bouton-modifier-emplacement-mobilier').click();
+        map.fire('click', { latlng: L.latLng(206, 207) });
+        document.getElementById('bouton-enregistrer-mobilier').click();
+        await attendreCondition(() => document.getElementById('modal-mobilier-urbain').hidden === true);
+
+        const maj = (await listerMobilierUrbain()).find((o) => o.uid === 'TST-POS-SAVE');
+        const marker = mobilierMarkers['TST-POS-SAVE'];
+        return maj.lat === 206 && maj.lon === 207
+          && marker.getLatLng().lat === 206 && marker.getLatLng().lng === 207;
+      });
+
+      // --- Doublon lors d'un déplacement : ne doit jamais se comparer à l'ancienne
+      // position de l'objet en cours de modification (demande explicite du 31/08) ---
+      await verifierAsync('mobilier : déplacer un objet vers un point proche de son ancienne position ne se signale pas comme un doublon de lui-même', async () => {
+        const objet = { uid: 'TST-POS-SELF', type_objet: 'Banc', etat: 'Bon', nombre: 1, commentaire: '', last_update: new Date().toISOString(), lat: 208, lon: 208 };
+        await enregistrerMobilierUrbain(objet);
+        afficherMarqueurMobilier(objet);
+
+        await ouvrirEditionMobilier('TST-POS-SELF');
+        document.getElementById('bouton-modifier-emplacement-mobilier').click();
+        map.fire('click', { latlng: L.latLng(208.00001, 208.00001) }); // à quelques cm de l'ancienne position
+
+        confirmMessages.length = 0;
+        document.getElementById('bouton-enregistrer-mobilier').click();
+        await attendreCondition(() => document.getElementById('modal-mobilier-urbain').hidden === true);
+
+        const maj = (await listerMobilierUrbain()).find((o) => o.uid === 'TST-POS-SELF');
+        return confirmMessages.length === 0 && maj.lat === 208.00001 && maj.lon === 208.00001;
+      });
+
+      await verifierAsync('mobilier : déplacer un objet vers l\'emplacement d\'un autre objet du même type déclenche l\'alerte de doublon (refus puis acceptation)', async () => {
+        await enregistrerMobilierUrbain({ uid: 'TST-POS-AUTRE', type_objet: 'Banc', etat: 'Bon', nombre: 1, commentaire: '', last_update: new Date().toISOString(), lat: 210, lon: 210 });
+        const objet = { uid: 'TST-POS-MOVE', type_objet: 'Banc', etat: 'Bon', nombre: 1, commentaire: '', last_update: new Date().toISOString(), lat: 211, lon: 211 };
+        await enregistrerMobilierUrbain(objet);
+        afficherMarqueurMobilier(objet);
+
+        await ouvrirEditionMobilier('TST-POS-MOVE');
+        document.getElementById('bouton-modifier-emplacement-mobilier').click();
+        map.fire('click', { latlng: L.latLng(210, 210) }); // exactement la position de TST-POS-AUTRE
+
+        confirmMessages.length = 0;
+        confirmReponse = false;
+        document.getElementById('bouton-enregistrer-mobilier').click();
+        await attendreCondition(() => confirmMessages.length > 0);
+        await attendre(30);
+        const refuse = (await listerMobilierUrbain()).find((o) => o.uid === 'TST-POS-MOVE');
+        document.getElementById('modal-mobilier-urbain').hidden = true;
+
+        confirmReponse = true;
+        await ouvrirEditionMobilier('TST-POS-MOVE');
+        document.getElementById('bouton-modifier-emplacement-mobilier').click();
+        map.fire('click', { latlng: L.latLng(210, 210) });
+        document.getElementById('bouton-enregistrer-mobilier').click();
+        await attendreCondition(() => document.getElementById('modal-mobilier-urbain').hidden === true);
+        const accepte = (await listerMobilierUrbain()).find((o) => o.uid === 'TST-POS-MOVE');
+
+        return confirmMessages[0].includes('existe déjà') && confirmMessages[0].includes('nouvel emplacement')
+          && refuse.lat === 211 && refuse.lon === 211
+          && accepte.lat === 210 && accepte.lon === 210;
+      });
+
+      await verifierAsync('commerce : modifier l\'emplacement puis enregistrer déplace le marqueur et met à jour la position sauvegardée', async () => {
+        const objet = { uid: 'TST-CPOS-SAVE', nom_commerce: 'Test', type_commerce: 'Coiffeur', etat: 'Occupé', date_fermeture: '', commentaire: '', last_update: new Date().toISOString(), lat: 215, lon: 215 };
+        await enregistrerCommerce(objet);
+        afficherMarqueurCommerce(objet);
+
+        await ouvrirEditionCommerce('TST-CPOS-SAVE');
+        document.getElementById('bouton-modifier-emplacement-commerce').click();
+        map.fire('click', { latlng: L.latLng(216, 217) });
+        document.getElementById('bouton-enregistrer-commerce').click();
+        await attendreCondition(() => document.getElementById('modal-commerce').hidden === true);
+
+        const maj = (await listerCommerces()).find((o) => o.uid === 'TST-CPOS-SAVE');
+        const marker = commerceMarkers['TST-CPOS-SAVE'];
+        return maj.lat === 216 && maj.lon === 217
+          && marker.getLatLng().lat === 216 && marker.getLatLng().lng === 217;
+      });
+
+      await verifierAsync('commerce : déplacer un commerce vers un point proche de son ancienne position ne se signale pas comme un doublon de lui-même', async () => {
+        const objet = { uid: 'TST-CPOS-SELF', nom_commerce: '', type_commerce: 'Banque', etat: 'Occupé', date_fermeture: '', commentaire: '', last_update: new Date().toISOString(), lat: 218, lon: 218 };
+        await enregistrerCommerce(objet);
+        afficherMarqueurCommerce(objet);
+
+        await ouvrirEditionCommerce('TST-CPOS-SELF');
+        document.getElementById('bouton-modifier-emplacement-commerce').click();
+        map.fire('click', { latlng: L.latLng(218.00001, 218.00001) });
+
+        confirmMessages.length = 0;
+        document.getElementById('bouton-enregistrer-commerce').click();
+        await attendreCondition(() => document.getElementById('modal-commerce').hidden === true);
+
+        const maj = (await listerCommerces()).find((o) => o.uid === 'TST-CPOS-SELF');
+        return confirmMessages.length === 0 && maj.lat === 218.00001 && maj.lon === 218.00001;
+      });
+
+      await verifierAsync('commerce : déplacer un commerce vers l\'emplacement d\'un autre commerce du même type déclenche l\'alerte de doublon (refus puis acceptation)', async () => {
+        await enregistrerCommerce({ uid: 'TST-CPOS-AUTRE', nom_commerce: '', type_commerce: 'Banque', etat: 'Occupé', date_fermeture: '', commentaire: '', last_update: new Date().toISOString(), lat: 220, lon: 220 });
+        const objet = { uid: 'TST-CPOS-MOVE', nom_commerce: '', type_commerce: 'Banque', etat: 'Occupé', date_fermeture: '', commentaire: '', last_update: new Date().toISOString(), lat: 221, lon: 221 };
+        await enregistrerCommerce(objet);
+        afficherMarqueurCommerce(objet);
+
+        await ouvrirEditionCommerce('TST-CPOS-MOVE');
+        document.getElementById('bouton-modifier-emplacement-commerce').click();
+        map.fire('click', { latlng: L.latLng(220, 220) });
+
+        confirmMessages.length = 0;
+        confirmReponse = false;
+        document.getElementById('bouton-enregistrer-commerce').click();
+        await attendreCondition(() => confirmMessages.length > 0);
+        await attendre(30);
+        const refuse = (await listerCommerces()).find((o) => o.uid === 'TST-CPOS-MOVE');
+        document.getElementById('modal-commerce').hidden = true;
+
+        confirmReponse = true;
+        await ouvrirEditionCommerce('TST-CPOS-MOVE');
+        document.getElementById('bouton-modifier-emplacement-commerce').click();
+        map.fire('click', { latlng: L.latLng(220, 220) });
+        document.getElementById('bouton-enregistrer-commerce').click();
+        await attendreCondition(() => document.getElementById('modal-commerce').hidden === true);
+        const accepte = (await listerCommerces()).find((o) => o.uid === 'TST-CPOS-MOVE');
+
+        return confirmMessages[0].includes('existe déjà') && confirmMessages[0].includes('nouvel emplacement')
+          && refuse.lat === 221 && refuse.lon === 221
+          && accepte.lat === 220 && accepte.lon === 220;
+      });
+
+      // --- Relecture du 06/09, point 1 : état de sélection de carte non nettoyé
+      // sur plusieurs chemins de sortie pendant "Modifier l'emplacement" — le
+      // prochain clic sur la carte pouvait appliquer un nouvel emplacement à
+      // l'objet en cours d'édition AU MOMENT DU CLIC, pas à celui initialement visé. ---
+      await verifierAsync('sélection carte : ouvrir "Modifier l\'emplacement" sur A puis éditer B annule la sélection de A (le clic suivant ne déplace ni A ni B)', async () => {
+        const a = { uid: 'TST-LEAK-A', type_objet: 'Banc', etat: 'Bon', nombre: 1, commentaire: '', last_update: new Date().toISOString(), lat: 230, lon: 230 };
+        const b = { uid: 'TST-LEAK-B', type_objet: 'Corbeille', etat: 'Bon', nombre: 1, commentaire: '', last_update: new Date().toISOString(), lat: 231, lon: 231 };
+        await enregistrerMobilierUrbain(a);
+        await enregistrerMobilierUrbain(b);
+        afficherMarqueurMobilier(a);
+        afficherMarqueurMobilier(b);
+
+        await ouvrirEditionMobilier('TST-LEAK-A');
+        document.getElementById('bouton-modifier-emplacement-mobilier').click();
+        const selectionEnCoursAvant = document.getElementById('banniere-selection').hidden === false;
+
+        await ouvrirEditionMobilier('TST-LEAK-B'); // sans finir la sélection de A
+        const selectionAnnulee = document.getElementById('banniere-selection').hidden === true;
+
+        map.fire('click', { latlng: L.latLng(232, 232) }); // ne doit rien faire, pour aucun des deux
+        document.getElementById('bouton-annuler-mobilier').click();
+
+        const objets = await listerMobilierUrbain();
+        const aInchange = objets.find((o) => o.uid === 'TST-LEAK-A');
+        const bInchange = objets.find((o) => o.uid === 'TST-LEAK-B');
+
+        return selectionEnCoursAvant && selectionAnnulee
+          && aInchange.lat === 230 && aInchange.lon === 230
+          && bInchange.lat === 231 && bInchange.lon === 231;
+      });
+
+      await verifierAsync('sélection carte : cliquer sur l\'onglet Carte pendant "Modifier l\'emplacement" annule la sélection en attente', async () => {
+        const objet = { uid: 'TST-LEAK-TAB', type_objet: 'Banc', etat: 'Bon', nombre: 1, commentaire: '', last_update: new Date().toISOString(), lat: 233, lon: 233 };
+        await enregistrerMobilierUrbain(objet);
+        afficherMarqueurMobilier(objet);
+
+        await ouvrirEditionMobilier('TST-LEAK-TAB');
+        document.getElementById('bouton-modifier-emplacement-mobilier').click();
+        document.getElementById('onglet-carte').click();
+        const selectionAnnulee = document.getElementById('banniere-selection').hidden === true;
+
+        map.fire('click', { latlng: L.latLng(234, 234) }); // ne doit rien faire
+
+        const inchange = (await listerMobilierUrbain()).find((o) => o.uid === 'TST-LEAK-TAB');
+        return selectionAnnulee && inchange.lat === 233 && inchange.lon === 233;
+      });
+
+      await verifierAsync('sélection carte : le raccourci clavier "M" pendant "Modifier l\'emplacement" annule la sélection en attente (PC)', async () => {
+        const original = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+        Object.defineProperty(window, 'innerWidth', { value: 1024, configurable: true });
+        onPositionRecue({ coords: { latitude: 235, longitude: 235 } });
+
+        const objet = { uid: 'TST-LEAK-KEY', type_objet: 'Banc', etat: 'Bon', nombre: 1, commentaire: '', last_update: new Date().toISOString(), lat: 236, lon: 236 };
+        await enregistrerMobilierUrbain(objet);
+        afficherMarqueurMobilier(objet);
+
+        await ouvrirEditionMobilier('TST-LEAK-KEY');
+        document.getElementById('bouton-modifier-emplacement-mobilier').click();
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', bubbles: true, cancelable: true }));
+        const selectionAnnulee = document.getElementById('banniere-selection').hidden === true;
+        const nouveauPanneauOuvert = document.getElementById('modal-mobilier-urbain').hidden === false;
+
+        map.fire('click', { latlng: L.latLng(237, 237) }); // ne doit pas déplacer TST-LEAK-KEY
+        fermerFormulaireMobilier();
+
+        const inchange = (await listerMobilierUrbain()).find((o) => o.uid === 'TST-LEAK-KEY');
+        Object.defineProperty(window, 'innerWidth', original);
+        return selectionAnnulee && nouveauPanneauOuvert && inchange.lat === 236 && inchange.lon === 236;
       });
 
       // --- Mobilier urbain : code appareil manquant ---
