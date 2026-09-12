@@ -39,6 +39,7 @@
     <div class="modal-contenu">
       <h2>Identification de l'appareil</h2>
       <p>Entrez un code court (2 à 4 lettres) pour identifier cet appareil — par exemple vos initiales. Il ne sera demandé qu'une seule fois.</p>
+      <p>⚠️ Ne réutilisez jamais un code déjà utilisé sur un autre appareil (même remplacé) — choisissez-en un nouveau en cas de doute.</p>
       <input type="text" id="input-code-appareil" maxlength="4" placeholder="Ex. MM">
       <p id="erreur-code-appareil" class="erreur" hidden></p>
       <button id="bouton-valider-code-appareil">Valider</button>
@@ -54,6 +55,7 @@
     <div class="barre-outils-separateur"></div>
     <button id="bouton-exporter" class="bouton-outil">Exporter</button>
     <button id="bouton-importer" class="bouton-outil">Importer</button>
+    <button id="bouton-effacer" class="bouton-outil">Effacer</button>
   </div>
 
   <!-- Mobile : icône filtre flottante au-dessus de la carte, masquée sur PC -->
@@ -88,6 +90,7 @@
       <h2>Fichier</h2>
       <button type="button" id="bouton-exporter-mobile" class="bouton-large">Exporter les données</button>
       <button type="button" id="bouton-importer-mobile" class="bouton-large">Importer un fichier</button>
+      <button type="button" id="bouton-effacer-mobile" class="bouton-large bouton-danger">Effacer les données</button>
     </div>
   </div>
   <input type="file" id="input-fichier-import" accept=".gpkg" hidden>

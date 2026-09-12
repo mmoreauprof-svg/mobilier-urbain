@@ -373,6 +373,21 @@ Vérifie : §6.4ter.
 6. Recommencer une dernière fois, mais cliquer sur le message bleu (annulation) plutôt que sur la carte.
    → **Attendu** : le panneau se rouvre sans aucun changement de position, comme si de rien n'était.
 
+#### Parcours Q — Effacer les données locales
+
+Vérifie : §6.5ter (mode opératoire « quartier par quartier », §2).
+
+1. Avec plusieurs objets enregistrés (mobilier et commerce), cliquer « Effacer » (barre d'outils PC) ou onglet « Fichier » → « Effacer les données » (mobile).
+   → **Attendu** : une confirmation native s'affiche, rappelant d'avoir exporté au préalable et le caractère irréversible de l'action.
+2. Répondre **Non/Annuler**.
+   → **Attendu** : rien ne change, tous les objets restent visibles sur la carte.
+3. Refaire la même action et répondre **Oui** cette fois.
+   → **Attendu** : la carte se vide de tous les marqueurs (mobilier et commerce) immédiatement.
+4. Recharger la page.
+   → **Attendu** : la carte reste vide (effacement bien persisté, pas seulement visuel) ; **aucune** fenêtre d'identification de l'appareil ne réapparaît, et l'encart « Appareil : ... » affiche toujours le même code qu'avant l'effacement (`code_appareil` non touché).
+5. Créer un nouvel objet après cet effacement.
+   → **Attendu** : son `uid` poursuit la numérotation là où elle en était avant l'effacement (`compteur_local` non remis à zéro) — vérifiable en comparant au dernier `uid` généré avant l'effacement, par exemple via un export.
+
 ### Parcours avec erreurs / cas limites
 
 #### Erreur 1 — Code appareil invalide au premier lancement

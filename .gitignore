@@ -9,8 +9,8 @@ Thumbs.db
 .vscode/
 *.swp
 
-# Config locale Claude Code
-.claude/settings.local.json
+# Config locale Claude Code (permissions personnelles, config de lancement du navigateur, etc.)
+.claude/
 
 # Outillage de génération des présentations PowerPoint, hors périmètre de la PWA
 Présentation/

@@ -12,6 +12,7 @@ Le recensement des commerces vise en particulier à **identifier les locaux comm
 
 - Usage **à deux**, chacun sur son téléphone (un **Android** et un **iPhone**), en parallèle sur le terrain — pas de compte, pas de backend, pas de synchronisation automatique entre les deux téléphones.
 - La fusion des relevés des deux téléphones se fait **manuellement dans QGIS**, à partir des fichiers `.gpkg` exportés par chacun.
+- **Variante de mode opératoire, constatée sur le terrain** ✅ (06/09) — s'ajoute aux modes ci-dessus, ne les remplace pas : le relevé peut aussi se faire **quartier par quartier** (par une ou deux personnes), avec un effacement des données locales entre deux quartiers (cf. §6.5ter) pour repartir d'une carte vide et y voir clair, chaque quartier étant exporté juste avant. La consolidation se fait ensuite **de façon incrémentale sur PC**, en import-fusionnant successivement chaque export de quartier (§6.5, mode "Fusionner") dans une base grandissante — ce mécanisme existait déjà pour fusionner deux téléphones et fonctionne tel quel pour fusionner des quartiers successifs d'un même téléphone, à la seule condition que `compteur_local` ne soit jamais remis à zéro entre deux quartiers (cf. §3bis).
 - Pas de publication sur un store (Play Store / App Store).
 - Utilisation **hors-ligne pendant la saisie sur le terrain** ✅ (revu le 2026-08-23, cf. §4) : une connexion est nécessaire pour installer l'app et pour récupérer les mises à jour, mais pas pour l'utiliser une fois installée.
 - ⚠️ **Limite de vie privée connue et acceptée** (rapport d'audit du 23/08, point 2) : chaque tuile de carte affichée est demandée directement au serveur de tuiles OpenStreetMap, avec les coordonnées de la zone visible dans l'URL — comportement standard de l'usage direct d'OSM, pas un défaut d'implémentation. Cela signifie que le serveur de tuiles (et tout observateur du trafic réseau) peut déduire la position approximative de l'utilisateur à chaque affichage de carte, y compris hors d'une saisie. Décision assumée : aucune donnée de relevé n'est concernée (elle reste locale, cf. ci-dessus), seul l'usage normal de la carte l'est.
@@ -38,8 +39,9 @@ Deux téléphones saisissant en parallèle vont chacun générer des identifiant
 
 - **GeoPackage impose un `fid` de type INTEGER** pour chaque table (contrainte du format). Ce `fid` reste un simple numéro de ligne **local au fichier exporté**, sans signification entre appareils.
 - On ajoute donc un champ métier séparé, **`uid` (TEXT)**, seul identifiant réellement unique et stable, construit ainsi : `{code_appareil}-{compteur_local}` (ex. `AND-014`, `IOS-007`).
-- **`code_appareil`** : un court libellé (2-4 lettres) saisi une seule fois, au premier lancement de l'app sur chaque téléphone (ex. initiales de la personne). Stocké localement, jamais redemandé ensuite.
-- **`compteur_local`** : entier auto-incrémenté séparément sur chaque téléphone — pas de coordination nécessaire entre les deux appareils.
+- **`code_appareil`** : un court libellé (2-4 lettres) saisi une seule fois, au premier lancement de l'app sur chaque téléphone (ex. initiales de la personne). Stocké localement, jamais redemandé ensuite. Lettres uniquement (`^[A-Za-z]{2,4}$`, `codeAppareilValide()` dans `device.js`) : c'est un choix d'ergonomie (initiales mémorisables), pas une contrainte technique — le `uid` n'est jamais reparsé ailleurs dans le code, il circule partout comme une chaîne opaque.
+- **`compteur_local`** : entier auto-incrémenté séparément sur chaque téléphone — pas de coordination nécessaire entre les deux appareils. Ne se remet **jamais** à zéro tout seul (ni par un import, cf. §6.5, ni par "Effacer les données", cf. §6.5ter — ces deux actions ne touchent que les données, jamais `localStorage`).
+- ⚠️ **Ne jamais réutiliser un `code_appareil`** (06/09) : un même code ne doit jamais servir sur deux appareils physiques différents, y compris un téléphone de remplacement ou après une réinstallation. Si `compteur_local` repart de zéro (nouveau téléphone, cache/site data effacé) alors qu'un `code_appareil` a déjà servi par le passé, les nouveaux `uid` générés (`XXX-001`, `XXX-002`...) entreront en collision avec ceux déjà produits sous ce même code lors d'une fusion ultérieure — silencieusement, comme n'importe quelle collision de `uid` (§6.5). En cas de doute, choisir un nouveau code plutôt que d'en réutiliser un ancien.
 - Le `uid` est utilisé pour tout le dédoublonnage (import fusionné, avertissement de proximité). Le `fid` GPKG n'est là que pour satisfaire le format du fichier.
 - **Protection contre les collisions entre onglets d'un même appareil** ✅ (24/08, rapport d'audit point 1) : `genererUid()` (`app/js/device.js`) sérialise la lecture-incrémentation-écriture du compteur via `navigator.locks` (Web Locks API) quand le navigateur le supporte, pour empêcher que deux onglets ouverts en parallèle sur le même appareil ne lisent la même valeur avant que l'un des deux ne l'ait réécrite (collision silencieuse, révélée seulement à la fusion GPKG). Repli sans verrou sur un navigateur qui ne le supporterait pas — comportement identique à avant cette correction.
 
@@ -178,6 +180,8 @@ Le formulaire d'édition (§6.4) comporte désormais un bouton **"Modifier l'emp
    - ⚠️ **Suppression non gérée par la fusion** : un objet supprimé sur un appareil n'est jamais retiré des autres lors d'une fusion (l'import n'ajoute/ne met à jour que ce qui est présent dans le fichier — il ne peut pas savoir qu'une absence signifie une suppression). Convention adoptée en attendant mieux : marquer l'objet à retirer par un commentaire "A SUPPRIMER" plutôt que le supprimer directement, puis traiter manuellement dans QGIS lors de la fusion finale des exports des deux appareils.
    - Ces deux opérations parcourent **les 9 couches du fichier importé**, mais reconsolident toujours vers les **2 bases locales** (`mobilier_urbain`, `commerce`, cf. §6.5bis) — la séparation en couches n'existe que dans le fichier `.gpkg`, jamais dans le stockage local du téléphone.
 
+4. **Effacer les données locales** — cf. §6.5ter, pour le mode opératoire "quartier par quartier" du §2.
+
 ### 6.5bis Structure des couches GPKG ✅
 
 Objectif : pouvoir afficher/masquer chaque catégorie indépendamment dans QGIS, en parallèle de l'usage de l'app.
@@ -201,6 +205,18 @@ Détail et code dans `app/js/gpkg.js` (commentaire d'en-tête). Sans objet pour 
 - **Import** : identique partout, via le sélecteur de fichiers natif (`<input type="file">`) — ouvre l'app Fichiers (iPhone) ou l'équivalent Android, navigation manuelle jusqu'au `.gpkg`.
 - **Export sur Android (Chrome)** : boîte de dialogue "Enregistrer sous" native (File System Access API) — choix du dossier et du nom à chaque export.
 - **Export sur iPhone (Safari)** : cette API n'existe pas ; l'app ouvre la feuille de partage native ("Partager…") pour enregistrer dans Fichiers, AirDrop, mail, etc. Sans cela, le fichier irait dans un dossier Téléchargements par défaut, peu pratique.
+
+### 6.5ter Effacer les données locales ✅ (conception validée le 06/09, développée le 12/09)
+
+Nouveau 3ème bouton dans le menu Fichier (à côté d'Exporter/Importer, PC et mobile), pour la variante de mode opératoire du §2 (relevé quartier par quartier, carte remise à vide entre deux quartiers après export) — reste disponible et sans effet particulier pour les autres modes d'usage.
+
+**Comportement** :
+- Vide les deux bases locales (`mobilier_urbain`, `commerce` — réutilise `viderStore()`, déjà utilisée par "Remplacer" à l'import) et retire tous les marqueurs actuellement affichés sur la carte (sans ça, les marqueurs resteraient visibles jusqu'au prochain rechargement de page, la carte n'étant pas recopiée en continu depuis IndexedDB).
+- **Ne touche jamais à `localStorage`** : ni `code_appareil`, ni surtout `compteur_local` (cf. §3bis — c'est la condition pour que la consolidation par fusion successive des quartiers, §2, reste sans collision de `uid`). C'est la différence essentielle avec "Remplacer" à l'import, qui vide aussi les données mais dans le but d'y charger un fichier immédiatement après.
+- Ne touche pas non plus à l'état des filtres (§6.1quater) ni au dernier type mémorisé pour la saisie en chaîne (§6.6bis) — aucun des deux n'est une donnée de relevé.
+- Action irréversible sur les données locales (pas de corbeille, pas d'annulation) : confirmation explicite avant d'agir (`confirm()`, même mécanisme que "Supprimer"), avec un message rappelant l'enjeu (ex. "Effacer toutes les données locales de cet appareil ? Pensez à avoir exporté ce quartier avant de continuer. Cette action est irréversible."). Choix assumé : un simple rappel dans le message plutôt qu'un verrou technique (ex. suivre si un export a eu lieu depuis la dernière modification) — cohérent avec le reste de l'app, qui fait déjà confiance à l'utilisateur via `confirm()` pour les autres actions destructrices (Supprimer, Remplacer à l'import).
+
+**Répercussion positive constatée en amont** : la consolidation "de façon incrémentale sur PC" décrite au §2 ne nécessite **aucun développement supplémentaire** — le mode "Fusionner" de l'import (§6.5, déjà conçu pour fusionner deux téléphones) fusionne tout aussi bien des quartiers successifs d'un même téléphone, du moment que `compteur_local` progresse sans jamais repartir de zéro entre deux quartiers.
 
 ### 6.6 Interface adaptative PC / mobile ✅
 

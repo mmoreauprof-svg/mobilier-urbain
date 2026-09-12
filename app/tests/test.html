@@ -67,6 +67,7 @@
     <div id="ecran-fichier" hidden>
       <button type="button" id="bouton-exporter-mobile"></button>
       <button type="button" id="bouton-importer-mobile"></button>
+      <button type="button" id="bouton-effacer-mobile"></button>
     </div>
 
     <div id="modal-mobilier-urbain" class="panneau-formulaire" hidden>
@@ -128,6 +129,7 @@
 
     <button id="bouton-exporter"></button>
     <button id="bouton-importer"></button>
+    <button id="bouton-effacer"></button>
     <input type="file" id="input-fichier-import" accept=".gpkg" hidden>
     <div id="modal-import-choix" hidden>
       <button type="button" id="bouton-import-fusionner">Fusionner</button>
@@ -1639,8 +1641,14 @@
         document.getElementById('bouton-exporter-mobile').click();
         window.exporterDonnees = originalExport;
 
+        const originalEffacer = window.effacerDonnees;
+        let appelEffacer = false;
+        window.effacerDonnees = () => { appelEffacer = true; return Promise.resolve(); };
+        document.getElementById('bouton-effacer-mobile').click();
+        window.effacerDonnees = originalEffacer;
+
         document.getElementById('onglet-carte').click();
-        return ecranOuvert && ongletActif && appelExport;
+        return ecranOuvert && ongletActif && appelExport && appelEffacer;
       });
 
       // --- Échec de chargement au démarrage : mobilier urbain ---
@@ -1947,6 +1955,54 @@
           construireGpkg = construireOriginal;
           sauvegarderFichier = sauvegarderOriginal;
         }
+      });
+
+      // --- Effacer les données locales (§6.5ter, demande du 12/09) ---
+      await verifierAsync('gpkg : "Effacer les données" refusé (confirm annulé) ne supprime rien', async () => {
+        const objet = { uid: 'TST-EFF-1', type_objet: 'Banc', etat: 'Bon', nombre: 1, commentaire: '', last_update: new Date().toISOString(), lat: 240, lon: 240 };
+        await enregistrerMobilierUrbain(objet);
+        afficherMarqueurMobilier(objet);
+
+        confirmReponse = false;
+        confirmMessages.length = 0;
+        await effacerDonnees();
+        confirmReponse = true; // restaure la valeur par défaut attendue par les autres tests
+
+        const objets = await listerMobilierUrbain();
+        return confirmMessages.length > 0
+          && objets.some((o) => o.uid === 'TST-EFF-1')
+          && !!mobilierMarkers['TST-EFF-1'];
+      });
+
+      await verifierAsync('gpkg : "Effacer les données" accepté vide les 2 bases et tous les marqueurs, sans toucher code_appareil ni compteur_local', async () => {
+        const mobilier = { uid: 'TST-EFF-2', type_objet: 'Corbeille', etat: 'Bon', nombre: 1, commentaire: '', last_update: new Date().toISOString(), lat: 241, lon: 241 };
+        const commerce = { uid: 'TST-EFF-3', nom_commerce: '', type_commerce: 'Banque', etat: 'Occupé', date_fermeture: '', commentaire: '', last_update: new Date().toISOString(), lat: 242, lon: 242 };
+        await enregistrerMobilierUrbain(mobilier);
+        await enregistrerCommerce(commerce);
+        afficherMarqueurMobilier(mobilier);
+        afficherMarqueurCommerce(commerce);
+
+        const codeAvant = localStorage.getItem(CLE_CODE_APPAREIL);
+        const compteurAvant = localStorage.getItem(CLE_COMPTEUR_LOCAL);
+
+        confirmReponse = true;
+        await effacerDonnees();
+
+        const mobiliers = await listerMobilierUrbain();
+        const commerces = await listerCommerces();
+        return !mobiliers.some((o) => o.uid === 'TST-EFF-2')
+          && !commerces.some((o) => o.uid === 'TST-EFF-3')
+          && !mobilierMarkers['TST-EFF-2'] && !commerceMarkers['TST-EFF-3'] // viderMarqueurs() a bien retiré la couche ET l'entrée de suivi
+          && localStorage.getItem(CLE_CODE_APPAREIL) === codeAvant
+          && localStorage.getItem(CLE_COMPTEUR_LOCAL) === compteurAvant;
+      });
+
+      await verifierAsync('gpkg : le message de confirmation d\'effacement rappelle explicitement d\'avoir exporté au préalable', async () => {
+        confirmReponse = false;
+        confirmMessages.length = 0;
+        await effacerDonnees();
+        confirmReponse = true; // restaure la valeur par défaut attendue par les autres tests
+        return confirmMessages[0].includes('exporté') && confirmMessages[0].includes('irréversible');
       });
 
       // --- Analyse du 23/08 : round-trip export → import complet ---

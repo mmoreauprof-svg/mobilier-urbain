@@ -87,6 +87,7 @@ document.getElementById('bouton-exporter-mobile').addEventListener('click', () =
 document.getElementById('bouton-importer-mobile').addEventListener('click', () => {
   document.getElementById('input-fichier-import').click();
 });
+document.getElementById('bouton-effacer-mobile').addEventListener('click', () => effacerDonnees());
 
 document.querySelectorAll('.bouton-filtres-icone').forEach((bouton) => {
   bouton.addEventListener('click', () => {

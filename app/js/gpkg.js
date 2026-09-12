@@ -316,6 +316,28 @@ async function exporterDonnees() {
   }
 }
 
+// --- Effacer les données locales (§6.5ter, demande du 12/09) ---
+//
+// Distinct de "Remplacer" à l'import : vide les mêmes 2 bases et les mêmes
+// marqueurs, mais ne charge rien ensuite — pensé pour le mode opératoire
+// "quartier par quartier" (§2), où la carte est remise à vide entre deux
+// quartiers après export, sans jamais toucher à code_appareil/compteur_local
+// (localStorage, §3bis) : c'est ce qui permet de fusionner sans collision de
+// uid les exports successifs de plusieurs quartiers du même appareil.
+async function effacerDonnees() {
+  if (!confirm('Effacer toutes les données locales de cet appareil (mobiliers et commerces) ? Avez-vous bien exporté ces données au préalable ? Cette action est irréversible.')) {
+    return;
+  }
+  try {
+    await viderStore('mobilier_urbain');
+    await viderStore('commerce');
+    viderMarqueurs();
+  } catch (erreur) {
+    console.error('Échec de l\'effacement des données locales :', erreur);
+    alert('Échec de l\'effacement — certaines données peuvent subsister. Réessayez.');
+  }
+}
+
 // --- Import : lecture du fichier puis choix remplacer/fusionner (§6.5) ---
 
 function viderMarqueurs() {
@@ -445,3 +467,5 @@ document.getElementById('bouton-import-remplacer').addEventListener('click', asy
 });
 
 document.getElementById('bouton-import-annuler').addEventListener('click', fermerChoixImport);
+
+document.getElementById('bouton-effacer').addEventListener('click', effacerDonnees);
